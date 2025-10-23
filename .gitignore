@@ -1,4 +1,7 @@
 # 忽略 Python 虚拟环境目录
+# env files / folders
+.env
+env
 env/
 venv/
 ENV/
