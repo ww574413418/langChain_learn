@@ -54,7 +54,7 @@ print("初始化大语言模型成功")
 # 使用工具初始化智能体并运行
 tools = [ImageCapTool()]
 agent = initialize_agent(
-    agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+    agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,#使用了一个叫做 ReAct（Reason + Act）
     tools=tools,
     llm=llm,
     verbose=True,
@@ -63,4 +63,33 @@ agent = initialize_agent(
 
 img_url = "https://lf3-static.bytednsdoc.com/obj/eden-cn/lkpkbvsj/ljhwZthlaukjlkulzlp/eec79e20058499.563190744f903.jpg"
 # agent.run(input=f"{img_url}\n请创作合适的中文推广文案")
-agent.invoke(input=f"图片链接如下：{img_url}\n 请为这张图创作合适的中文推广文案")
+# agent.invoke()
+#  ├──> AgentExecutor._call()
+#  │     ├──> LLMChain.predict()  ← 调用 Gemini 生成“思考动作计划”
+#  │     │     └──> Gemini 输出：
+#  │     │         Thought: 我要先了解图片内容
+#  │     │         Action: Image captioner
+#  │     │         Action Input: 图片URL
+#  │     │
+#  │     ├──> 找到对应的 Tool（ImageCapTool）
+#  │     │
+#  │     └──> 调用该 Tool 的 run() 方法
+#  │           └──> run() 内部再调用你的 _run()
+#  │                 ↓↓↓
+#  │                 image = Image.open(...)
+#  │                 inputs = processor(image)
+#  │                 out = model.generate(...)
+#  │                 caption = processor.decode(out)
+#  │                 return caption
+#  │
+#  ├──> Agent 接收到工具返回的结果 (Observation)
+#  │
+#  ├──> 再次让 LLM 继续推理：
+#  │     “我已经知道图片内容，现在要生成推广文案”
+#  │
+#  └──> 最终输出 Final Answer
+agent.invoke(
+    input=f"图片链接如下：{img_url}\n请为这张图创作合适的中文推广文案。"
+          f"请严格只输出 Final Answer 段落，不要输出 Thought 或 Action。",
+    handle_parsing_errors=True
+)
