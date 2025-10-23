@@ -1,6 +1,6 @@
-from dotenv import load_dotenv
 import os
 from openai import OpenAI
+from dotenv import load_dotenv
 
 load_dotenv("/Users/grubby/Library/Mobile Documents/com~apple~CloudDocs/PycharmProjects/langChain/langChain_learn/env")
 api_key = os.getenv("API_KEY")

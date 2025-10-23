@@ -1,5 +1,5 @@
-
 import os
+from dotenv import load_dotenv
 import requests
 from PIL import Image
 from transformers import BlipProcessor, BlipForConditionalGeneration
@@ -22,8 +22,8 @@ print("初始化图像字幕生成模型成功")
 
 # ---- Part II 定义图像字幕生成工具类
 class ImageCapTool(BaseTool):
-    name = "Image captioner"
-    description = "使用该工具可以生成图片的文字描述，需要传入图片的URL."
+    name:str = "Image captioner"
+    description:str = "使用该工具可以生成图片的文字描述，需要传入图片的URL."
 
     def _run(self, url: str):
         # 下载图像并将其转换为PIL对象
@@ -39,11 +39,16 @@ class ImageCapTool(BaseTool):
     def _arun(self, query: str):
         raise NotImplementedError("This tool does not support async")
 
+# 显式加载名为 env 的文件
+load_dotenv("/Users/grubby/Library/Mobile Documents/com~apple~CloudDocs/PycharmProjects/langChain/langChain_learn/env")
 
-API_KEY = "sk-Q4qtQDCC3axW4QmzI4VLAdmxpniZcsJ0nioOOKD24D5t2dlg"
-BASE_URL = "https://api.deepbricks.ai/v1/"
+print(os.environ)
+API_KEY = os.getenv("API_KEY")
+BASE_URL = os.getenv("BASE_URL")
 
-llm = ChatOpenAI(api_key=API_KEY, base_url=BASE_URL,model="GPT-4o-mini")
+print("API_KEY:%s"%API_KEY)
+
+llm = ChatOpenAI(api_key=API_KEY, base_url=BASE_URL,model="gemini-2.5-pro")
 
 print("初始化大语言模型成功")
 # 使用工具初始化智能体并运行
