@@ -5,10 +5,10 @@ import os
 load_dotenv("/Users/grubby/Library/Mobile Documents/com~apple~CloudDocs/PycharmProjects/langChain/langChain_learn/env")
 api_key = os.getenv("SILICON_FLOW")
 base_url = os.getenv("SILLICON_URL")
+DB_PATH = "./local_qdrant"
 
 # 1.Load 导入Document Loaders
 from langchain_community.document_loaders import PyPDFLoader,Docx2txtLoader,TextLoader
-
 
 # 加载Documents
 base_dir = os.path.join(os.path.dirname(__file__), "oneFlowers")
@@ -46,10 +46,12 @@ embedding = OpenAIEmbeddings(
     model="BAAI/bge-large-zh-v1.5"
 )
 
+# vectorstore 向量数据库
 vectorstore = Qdrant.from_documents(
     documents=chunked_documents, # 以分块的文档
     embedding=embedding, # 用OpenAI的Embedding Model做嵌入
     location=":memory:",  # in-memory 存储
+    # location="./local_qdrant",  # ✅ 本地持久化
     collection_name="my_documents",# 指定collection_name
     batch_size = 16
 )
@@ -57,9 +59,12 @@ vectorstore = Qdrant.from_documents(
 # 4. Retrieval 准备模型和Retrieval链
 import logging # 导入Logging工具
 from langchain_openai import ChatOpenAI # ChatOpenAI模型
-from langchain_classic.retrievers import MultiQueryRetriever# MultiQueryRetriever工具
-from langchain_classic.chains import RetrievalQA # RetrievalQA链
-
+#MultiQueryRetriever 的内部机制是：它会让 LLM（例如 Gemini）自动改写用户问题，
+# 生成多种语义等价的提问（比如“公司假期政策是什么？”、“放假规定是怎样的？”），
+# 从而从向量数据库里找到更全面的文档。
+from langchain_classic.retrievers import MultiQueryRetriever
+# RetrievalQA链能让模型在“查资料 + 生成回答”两步之间自动衔接。
+from langchain_classic.chains import RetrievalQA
 
 
 # 设置Logging
@@ -80,7 +85,7 @@ llm = ChatOpenAI(
 # 实例化一个MultiQueryRetriever
 retriever_from_llm = MultiQueryRetriever.from_llm(retriever=vectorstore.as_retriever(), llm=llm)
 
-# 实例化一个RetrievalQA链
+# 实例化一个RetrievalQA链,将大模型和retriever_from_llm链接在一块
 qa_chain = RetrievalQA.from_chain_type(llm,retriever=retriever_from_llm)
 
 
