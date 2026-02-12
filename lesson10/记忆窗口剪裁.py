@@ -9,7 +9,7 @@ from langchain_core.prompts import ChatPromptTemplate,MessagesPlaceholder
 
 load_dotenv("/Users/grubby/Library/Mobile Documents/com~apple~CloudDocs/PycharmProjects/langChain/langChain_learn/env")
 api = os.getenv("SILICON_FLOW")
-base_url = os.getenv("SILLICON_URL")
+base_url = os.getenv("SILICON_URL")
 
 llm = ChatOpenAI(
     model="tencent/Hunyuan-MT-7B",
