@@ -12,7 +12,7 @@ api_key=os.getenv("SILICON_FLOW")
 base_url=os.getenv("SILICON_URL")
 
 model = ChatOpenAI(
-    model="tencent/Hunyuan-MT-7B",
+    model="Pro/MiniMaxAI/MiniMax-M2.5",
     api_key=api_key,
     base_url=base_url,
 )
