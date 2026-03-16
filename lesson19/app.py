@@ -1,3 +1,5 @@
+import time
+
 import streamlit as st
 from agent.react_agent import ReactAgent
 
@@ -16,10 +18,9 @@ if "history_messages" not in st.session_state:
     st.session_state["history_messages"] = []
 
 for message in st.session_state["history_messages"]:
-    if message["role"] == "user":
-        st.chat_message("user").write(message["content"])
-    else:
-        st.chat_message("assistant").write(message["content"])
+    st.chat_message(message["role"]).write(message["content"])
+
+
 
 # user input prompt
 prompt = st.chat_input()
@@ -35,7 +36,12 @@ if prompt:
         def stream_result(generator,cache_list):
             for chunk in generator:
                 cache_list.append(chunk)
-                yield chunk
+                for char in chunk:
+                    time.sleep(0.01)
+                    # 一个一个字符的流式输出
+                    yield char
+
 
         st.chat_message("assistant").write_stream(stream_result(result,response_message))
+        # response_message[-1] 只保存结果,不保存思考过程
         st.session_state["history_messages"].append({"role": "assistant", "content": response_message[-1]})
