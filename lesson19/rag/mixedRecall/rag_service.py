@@ -4,11 +4,13 @@ and then summary the search result and user input
 '''
 from langchain_core.documents import Document
 from utils.logger_handler import logger as log
-from rag.vector_store import vector_store
+from rag.mixedRecall.vector_store import vector_store
 from langchain_core.prompts import PromptTemplate
 from model import model_factory
 from utils.prompts_loader import load_rag_prompt,load_refine_query_prompt
 from langchain_core.output_parsers import StrOutputParser
+from utils.config_handler import chroma_config
+from langchain_community.retrievers import BM25Retriever
 import jieba
 
 
@@ -22,6 +24,8 @@ class rag_summary_service:
         self.model = model_factory.chat_model
         self.retriever = vector_store.get_retriever()
         self.chain = self._init_chain()
+        self.cross_encoder = model_factory.reranking_model_silicon #注入重排序模型
+
 
 
     def _init_chain(self):
@@ -36,11 +40,13 @@ class rag_summary_service:
         :param user_input: user input
         :return:
         '''
-        docs = self.retriever.invoke(user_input)
-        log.info("get relative info")
+        dense_docs = self.dense_retriever(user_input,top_k=chroma_config["k"])
+        sparse_docs = self.sparse_retriever(user_input,top_k=chroma_config["k"])
+        fuse_docs = self.rrf_fuse(dense_docs,sparse_docs)
+        rerank_docs = self.cross_encoder_rerank(user_input,fuse_docs)
+        log.info(f"get relative info:{rerank_docs}")
 
-        ranked_docs = self.rerank_documents(user_input, docs)
-        return ranked_docs[:5]
+        return rerank_docs[:5]
 
     def rag_summary(self,user_input:str) -> str:
         context_doc = self.retriever_document(user_input)
@@ -70,93 +76,140 @@ class rag_summary_service:
         res = chain.invoke(user_input)
         return res
 
-
-    def extract_keywords(self, query: str) -> list[str]:
+    def dense_retriever(self, user_input, top_k) -> list[Document]:
         '''
-        extract keywords of user query
-        :param query:
+        向量匹配
+        :param user_input:
+        :param top_k:
         :return:
         '''
-        # 定义jieba那些词不需要处理
-        stop_words = {
-            "怎么", "怎么办", "如何", "为什么", "一下", "一个", "一些",
-            "处理", "方法", "问题", "原因", "的", "了", "吗", "呢"
+        docs = self.retriever.invoke(user_input)
+        return docs[:top_k]
+
+    def Chinese_tokenize(self, text) -> list[str]:
+        '''
+        中文分词器,帮助bm25更好分词
+        :param text:
+        :return:
+        '''
+        words = jieba.lcut(text)
+        return [w for w in words if w.strip()]
+
+    def sparse_retriever(self, user_input, top_k) ->list[Document]:
+        '''
+        关键词匹配
+        :param user_input:
+        :param top_k:
+        :return:
+        '''
+        try:
+            doc_chunks = self.vect_store.get_all_split_documents()
+            if not doc_chunks:
+                log.error(f"there are no chunk data,chunks:{len(doc_chunks)}")
+                return []
+
+            bm25 = BM25Retriever.from_documents(doc_chunks,preprocess_func=self.Chinese_tokenize)
+            bm25.k = top_k
+            docs = bm25.invoke(user_input)
+            return docs
+        except Exception as e:
+            log.error(f"sparse retriever error,error={e}")
+            return []
+
+    def get_doc_key(self,chunk:Document) ->str:
+        """
+        获取文档的key
+        :return:
+        """
+        doc_id = chunk.metadata.get("doc_id")
+        if not doc_id:
+            log.error(f"there are no doc_id in chunk,chunk={chunk}")
+            doc_id=chunk.page_content[:100]
+
+        chunk_id = chunk.metadata.get("chunk_id")
+        if not chunk_id:
+            log.error(f"there are no chunk_id in chunk,chunk={chunk}")
+            chunk_id = chunk.metadata["source"]
+
+        key= f"{doc_id}_{chunk_id}"
+        return key
+
+    '''
+    用来记录每个文档的累积分数
+    
+    score = 1 / (rrf_k + rank)
+    rrf_k = 60 设置为默认值
+    
+     fused_map = {
+        "doc_key":{
+            "score":0.0, #累积PRF分
+            "doc":Document #要返回的document对象
         }
-
-        words = jieba.lcut(query)
-        keywords = []
-
-        for word in words:
-            word = word.strip()
-            if not word:
-                continue
-            if word in stop_words:
-                continue
-            if len(word) < 2:
-                 continue
-            keywords.append(word)
-
-        return  keywords
-
-    def keyword_score(self, query: str, doc: Document) -> int:
+    }
+    '''
+    def rrf_fuse(self, dense_docs, sparse_docs,rrf_k = 60) -> list[Document]:
         '''
-        set score for each keyword
-        :param query:
-        :param doc:
+            1.拿到排名 rank
+            2.拿到当前 doc
+            3.生成 doc_key
+            4.累加它的 RRF 分数
+        :param dense_docs:  向量索引结果
+        :param sparse_docs: 关键字索引结果
+        :param rrf_k:
         :return:
         '''
-        keywords = self.extract_keywords(query)
-        content = doc.page_content
-        score = 0
 
-        for kw in keywords:
-            if kw in content:
-                score += 1
+        fused_map = {}
 
-        if query.replace("？", "").replace("?", "") in content:
-            score += 10
+        for rank,doc in enumerate(dense_docs,start=1):
+            doc_key = self.get_doc_key(doc)
+            score = 1 / (rrf_k + rank)
 
-        if "怎么办" in content or "怎么处理" in content:
-            score += 1
+            if doc_key not in fused_map:
+                fused_map[doc_key] = {
+                    "score":score,
+                    "doc":doc
+                }
+            else:
+                fused_map[doc_key]["score"] += score
 
-        return score
+        for rank,doc in enumerate(sparse_docs,start=1):
+            doc_key = self.get_doc_key(doc)
+            score = 1 / (rrf_k + rank)
 
-    def rerank_documents(self, query: str, docs: list[Document]) -> list[Document]:
+            if doc_key not in fused_map:
+                fused_map[doc_key] = {
+                    "score":score,
+                    "doc":doc
+                }
+            else:
+                fused_map[doc_key]["score"] += score
+        # 把字典转成列表
+        ranked = list(fused_map.values())
+        # 按 score 降序排序
+        ranked.sort(key=lambda x: x["score"], reverse=True)
+
+
+        for idx, (doc_key, doc_info) in enumerate(fused_map.items(), start=1):
+            log.info(f"RRF fusion result #{idx} , score: {doc_info['score']:.6f} , doc_content: {doc_info['doc'].page_content[:100]}...")
+
+
+        #把排序结果还原成 Document 列表
+        return [doc["doc"] for doc in ranked]
+
+    def cross_encoder_rerank(self, user_input:str, fuse_docs:list[Document]) ->list[Document]:
         '''
-        rerank documents by keyword score
-        :param query:
-        :param docs:
+        使用cross_encoder对rrf召回的信息和用户的输入,进行相关性评价
+        :param user_input: 用户输入
+        :param fuse_docs: rrf召回的相关知识库数据
         :return:
         '''
-        ranked = []
-        total = len(docs)
-
-        for idx,doc in enumerate(docs):
-            vector_store = total - idx
-            kw_score = self.keyword_score(query, doc)
-            final_score = vector_store + kw_score*3
-
-            log.info(
-                f"rank | idx={idx} vector_score={vector_store}"
-                f"kw_score={kw_score} final_score={final_score}"
-                f"source={doc.metadata.get("source","")}"
-            )
-            ranked.append((final_score, doc))
-
-        ranked.sort(key=lambda x: x[0], reverse=True)
-        '''
-        result = []
-        for item in ranked:
-            score, doc = item
-            result.append(doc)
+        result = self.cross_encoder.rerank_documents(user_input,fuse_docs)
         return result
-        '''
-        return [doc for _, doc in ranked]
-
 
 
 rag_summary_service = rag_summary_service()
 
 if __name__ == '__main__':
 
-    print(rag_summary_service.rag_summary("APP无法连接机器人怎么办？"))
+    print(rag_summary_service.retriever_document("APP无法连接机器人怎么办？"))

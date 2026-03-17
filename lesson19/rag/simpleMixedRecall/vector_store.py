@@ -96,14 +96,9 @@ class VectorStoreService:
                     continue
 
                 split_documents = self.splitter.split_documents(document)
-
                 if not split_documents:
                     log.warning(f"there are no split file,file path={path}")
                     continue
-                # 为每一个split_text中的chunk文件构建一个doc_id,便于在混合索引的时候,知道是同一个chunk
-                for idx,chunk in enumerate(split_documents,start=1):
-                    chunk.metadata["doc_id"] = chunk.metadata["source"]
-                    chunk.metadata["chunk_id"] = idx
 
                 # save vector to chroma db
                 self.vect_store.add_documents(split_documents)
@@ -119,33 +114,12 @@ class VectorStoreService:
                 log.error(f"load file error,file path={path},error={e}",exc_info=True)
                 continue
 
-    def get_all_split_documents(self)->list[Document]:
-        '''
-        返回文档的chunk,给sparse_retriever BM25使用
-        :return:
-        '''
-        # get allowed type file path list
-        allowed_file_path: list[str] = listdir_with_allowed_type(
-            get_abs_path(chroma_config["data_path"]),
-            tuple(chroma_config["allow_knowledage_file_type"]))
-
-        all_chunks = []
-        for path in allowed_file_path:
-            document: list[Document] = self.get_file_documents(path)
-            split_docs = self.splitter.split_documents(document)
-            for idx, chunk in enumerate(split_docs,start=1):
-                chunk.metadata["doc_id"] = chunk.metadata["source"]
-                chunk.metadata["chunk_id"] = idx
-            all_chunks.extend(split_docs)
-
-        return all_chunks
 
 vector_store = VectorStoreService()
 
 if __name__ == '__main__':
     vs = VectorStoreService()
     vs.load_documents()
-    vs.get_all_split_documents()
 
     retriever = vs.get_retriever()
 

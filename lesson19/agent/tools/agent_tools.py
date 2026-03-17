@@ -2,7 +2,8 @@ import random
 
 from langchain.tools import tool
 from rag.rag_service import rag_summary_service
-from rag.mixedRecall.rag_service import rag_summary_service as rag_summary_service_mixRecall
+from rag.simpleMixedRecall.rag_service import rag_summary_service as rag_summary_service_mixRecall
+from rag.mixedRecall.rag_service import rag_summary_service as rag_summary_service_rrf
 from utils.config_handler import agents_config
 from utils.path_tool import get_abs_path
 from utils.logger_handler import logger as log
@@ -21,6 +22,10 @@ def rag_summarize(query:str) ->str:
 @tool(description="search info from vector store by mix recall")
 def rag_summarize_mixRecall(query:str) ->str:
     return rag_summary_service_mixRecall.rag_summary(query)
+
+@tool(description="search info from vector store by rrf")
+def rag_summarize_rrf(query:str) ->str:
+    return rag_summary_service_rrf.rag_summary(query)
 
 @tool(description="get city`s weather ")
 def get_weather(city:str)->str:

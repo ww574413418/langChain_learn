@@ -1,6 +1,6 @@
 collection_name: "agent"
 persist_directory: "chroma_db"
-k: 20
+k: 10
 data_path: "data"
 md5_hex_store: "md5.txt"
 allow_knowledage_file_type: ["txt","pdf"]
