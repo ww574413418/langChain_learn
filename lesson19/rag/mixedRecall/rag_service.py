@@ -24,7 +24,7 @@ class rag_summary_service:
         self.model = model_factory.chat_model
         self.retriever = vector_store.get_retriever()
         self.chain = self._init_chain()
-        self.cross_encoder = model_factory.reranking_model_silicon #注入重排序模型
+        self.cross_encoder = model_factory.reranker_adapter #注入重排序模型
 
 
 
@@ -204,8 +204,8 @@ class rag_summary_service:
         :param fuse_docs: rrf召回的相关知识库数据
         :return:
         '''
-        result = self.cross_encoder.rerank_documents(user_input,fuse_docs)
-        return result
+        result = self.cross_encoder.invoke({"query":user_input,"docs":fuse_docs})
+        return result["docs"]
 
 
 rag_summary_service = rag_summary_service()
