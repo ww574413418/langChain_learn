@@ -7,6 +7,8 @@ from langgraph.runtime import Runtime
 from langgraph.types import Command
 from utils.logger_handler import logger as log
 from utils.prompts_loader import load_system_prompt,load_report_prompt
+from langchain.messages import RemoveMessage
+from langgraph.graph.message import REMOVE_ALL_MESSAGES
 
 @wrap_tool_call
 def monitor_tool(
@@ -52,3 +54,34 @@ def report_prompt_switch(request:ModelRequest):
         return load_report_prompt()
 
     return load_system_prompt()
+
+
+@before_model
+def trim_history(state: AgentState,runtime: Runtime):
+    messages = state["messages"]
+
+    log.info(f"[trim_history] trim history,current history length:{len(messages)}")
+
+    # 历史消息小于6条 不处理
+    if len(messages) <= 6:
+        return None
+
+    # 如果历史消息太长,只保留6条
+    recent_message = messages[-6:]
+
+    # RemoveMessage 告诉langgraph 旧的state里面的消息都删掉,在塞入剪裁后的消息
+    return {
+        ''' 
+            RemoveMessage:表示一条“删除消息的更新指令”，不是普通聊天消息。它用于修改 state["messages"]。
+            
+            REMOVE_ALL_MESSAGES:不是一个消息 id 列表，也不是若干 id 的集合。它是一个特殊常量，意思接近于：
+            “不是删某一条，而是删当前 state 里的全部消息。”
+            
+            *recent_message 列表里的每条消息逐个展开到当前列表里。
+            这段代码的意思为:先清空当前 state 里的全部消息，再把我挑出来的最近 6 条消息重新写回去
+        '''
+        "messages":[
+            RemoveMessage(id=REMOVE_ALL_MESSAGES),
+            *recent_message
+        ]
+    }

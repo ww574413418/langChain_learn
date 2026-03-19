@@ -1,5 +1,5 @@
 import time
-
+import uuid
 import streamlit as st
 from agent.react_agent import agent
 
@@ -10,6 +10,10 @@ st.set_page_config(
 )
 st.title("智能客服")
 st.divider()
+
+#第一次聊天记录id
+if "thread_id" not in st.session_state:
+    st.session_state["thread_id"] = str(uuid.uuid4())
 
 if "agent" not in st.session_state:
     st.session_state["agent"] = agent
@@ -31,7 +35,7 @@ if prompt:
 
     response_message = []
     with st.spinner(text="thinking..."):
-        result = st.session_state["agent"].execute_stream(st.session_state["history_messages"])
+        result = st.session_state["agent"].execute_stream(prompt,st.session_state["thread_id"])
 
         def stream_result(generator,cache_list):
             for chunk in generator:

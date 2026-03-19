@@ -3,9 +3,10 @@ from utils.prompts_loader import load_system_prompt
 from agent.tools.agent_tools import (rag_summarize,get_weather,get_user_id,get_user_location,
                                      get_current_month,fetch_external_data,fill_context4report,
                                      rag_summarize_mixRecall,rag_summarize_rrf)
-from agent.tools.middleware import monitor_tool,log_before_model,report_prompt_switch
+from agent.tools.middleware import monitor_tool,log_before_model,report_prompt_switch,trim_history
 from langchain.agents import create_agent
-from langchain_core.prompts import MessagesPlaceholder
+from langgraph.checkpoint.memory import InMemorySaver
+from langchain_core.messages import AIMessage,ToolMessage
 
 class ReactAgent:
 
@@ -15,26 +16,43 @@ class ReactAgent:
             system_prompt = load_system_prompt,
             tools = [get_weather,get_user_id,get_user_location,get_current_month,
                           fetch_external_data,fill_context4report,rag_summarize_rrf],
-            middleware = [monitor_tool,log_before_model,report_prompt_switch]
+            middleware = [trim_history,monitor_tool,log_before_model,report_prompt_switch],
+            checkpointer= InMemorySaver() # 引入临时会话保存点
         )
 
-    def execute_stream(self,history:list):
+    def execute_stream(self,query:str,thread_id:str):
         input_dic = {
-            "messages": history,
+            "messages":
+                [{"role": "user", "content": query}]
+        }
+        # 用于保存历史信息
+        config = {
+            "configurable":{
+                "thread_id":thread_id
+            }
         }
         # context={"report":False} 就是切换prompt的标志
-        res = self.agent.stream(input_dic,stream_mode="values",context={"report":False})
+        res = self.agent.stream(input_dic,stream_mode="values",context={"report":False},config=config)
 
         for chunk in res:
             latest_message = chunk["messages"][-1]
-            if latest_message.content:
-                yield latest_message.content.strip() + "\n"
+            print(type(latest_message), latest_message)
+            # 检测是否是调用方法的信息
+            if isinstance(latest_message,ToolMessage):
+                continue
+
+            if isinstance(latest_message,AIMessage):
+                # 是ai message 但是是ai在决定如何使用tool的信息,跳过
+                if latest_message.tool_calls:
+                    continue
+                if latest_message.content:
+                    yield latest_message.content.strip() + "\n"
 
 
 agent = ReactAgent()
 
 if __name__ == '__main__':
-    res = ReactAgent.execute_stream("APP无法连接机器人怎么办？")
+    res = agent.execute_stream("APP无法连接机器人怎么办？","123123")
     for chunk in res:
         print(chunk,end="",flush=True)
 
