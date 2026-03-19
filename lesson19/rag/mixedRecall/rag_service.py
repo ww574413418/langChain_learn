@@ -24,7 +24,7 @@ class rag_summary_service:
         self.model = model_factory.chat_model
         self.retriever = vector_store.get_retriever()
         self.chain = self._init_chain()
-        self.cross_encoder = model_factory.reranker_adapter #注入重排序模型
+        self.cross_encoder = model_factory.reranker_runnable_rookie #注入重排序模型
 
 
 
