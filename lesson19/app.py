@@ -1,7 +1,7 @@
 import time
 
 import streamlit as st
-from agent.react_agent import ReactAgent
+from agent.react_agent import agent
 
 # title
 st.set_page_config(
@@ -12,7 +12,7 @@ st.title("智能客服")
 st.divider()
 
 if "agent" not in st.session_state:
-    st.session_state["agent"] = ReactAgent
+    st.session_state["agent"] = agent
 
 if "history_messages" not in st.session_state:
     st.session_state["history_messages"] = []
@@ -31,7 +31,7 @@ if prompt:
 
     response_message = []
     with st.spinner(text="thinking..."):
-        result = st.session_state["agent"].execute_stream(prompt)
+        result = st.session_state["agent"].execute_stream(st.session_state["history_messages"])
 
         def stream_result(generator,cache_list):
             for chunk in generator:

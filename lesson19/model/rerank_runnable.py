@@ -7,6 +7,7 @@ from pydantic import ConfigDict
 
 
 class RerankerRunnable(RunnableSerializable[dict,dict]):
+
     # 因为 SiliconRerankModel 是你自定义普通类，Pydantic 有时不认识。
     # 这时候要再加一个配置，允许任意类型。
     model_config = ConfigDict(arbitrary_types_allowed=True)

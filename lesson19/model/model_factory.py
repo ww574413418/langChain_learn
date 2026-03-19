@@ -62,7 +62,7 @@ class RerankerAdapter(BaseModelFactory) :
         reranker_client = RerankingFactorySilicon().generator()
         return build_reranker_adapter(reranker_client)
 
-class RerankerRunnable(BaseModelFactory) :
+class RerankerRunnableFactory(BaseModelFactory) :
     '''
     将reranker_client的普通python客户端封装成runnable类
     支持langchian的功能
@@ -77,7 +77,7 @@ embedding_model = EmbeddingFactory().generator()
 embedding_model_silicon = EmbeddingFactorySilicon().generator()
 reranking_model_silicon = RerankingFactorySilicon().generator()
 reranker_adapter = RerankerAdapter().generator()
-reranker_runnable = RerankerRunnable().generator()
+reranker_runnable = RerankerRunnableFactory().generator()
 
 if __name__ == '__main__':
     print(api_key)

@@ -5,6 +5,7 @@ from agent.tools.agent_tools import (rag_summarize,get_weather,get_user_id,get_u
                                      rag_summarize_mixRecall,rag_summarize_rrf)
 from agent.tools.middleware import monitor_tool,log_before_model,report_prompt_switch
 from langchain.agents import create_agent
+from langchain_core.prompts import MessagesPlaceholder
 
 class ReactAgent:
 
@@ -17,11 +18,9 @@ class ReactAgent:
             middleware = [monitor_tool,log_before_model,report_prompt_switch]
         )
 
-    def execute_stream(self,query:str):
+    def execute_stream(self,history:list):
         input_dic = {
-            "messages":[
-                {"role":"user","content":query}
-            ]
+            "messages": history,
         }
         # context={"report":False} 就是切换prompt的标志
         res = self.agent.stream(input_dic,stream_mode="values",context={"report":False})
@@ -32,7 +31,7 @@ class ReactAgent:
                 yield latest_message.content.strip() + "\n"
 
 
-ReactAgent = ReactAgent()
+agent = ReactAgent()
 
 if __name__ == '__main__':
     res = ReactAgent.execute_stream("APP无法连接机器人怎么办？")
