@@ -39,6 +39,13 @@ def log_before_model(
     log.info(f"[log_before_model] invoke model soon,there are {len(state["messages"])} info")
     log.debug(f"[log_before_model] {type(state["messages"][-1])} | {state["messages"][-1].content.strip()}")
 
+    for i, msg in enumerate(state["messages"]):
+        log.info(
+            f"[state_message] index={i}, "
+            f"type={type(msg).__name__}, "
+            f"source={msg.additional_kwargs.get('lc_source') if hasattr(msg, 'additional_kwargs') else None}, "
+            f"content={str(msg.content)[:80]}"
+        )
     return None
 
 @dynamic_prompt # 每一次在生成提示词之前调用

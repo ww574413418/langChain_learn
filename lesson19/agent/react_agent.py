@@ -7,16 +7,25 @@ from agent.tools.middleware import monitor_tool,log_before_model,report_prompt_s
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain_core.messages import AIMessage,ToolMessage
+from langchain.agents.middleware import SummarizationMiddleware
 
 class ReactAgent:
 
     def __init__(self):
-        self.agent:ReactAgent = create_agent(
+        self.agent = create_agent(
             model = chat_model,
-            system_prompt = load_system_prompt,
+            system_prompt = load_system_prompt(),
             tools = [get_weather,get_user_id,get_user_location,get_current_month,
                           fetch_external_data,fill_context4report,rag_summarize_rrf],
-            middleware = [trim_history,monitor_tool,log_before_model,report_prompt_switch],
+            middleware = [monitor_tool,
+                          report_prompt_switch,
+                          # 先总结旧消息 再保留最近几条
+                          SummarizationMiddleware(
+                              model = chat_model,
+                              trigger=("tokens",1000), # 历史消息大约到 4000 tokens 时，开始总结。
+                              keep=("messages",5) # 保留最近 20 条消息原文，较早部分压缩成 summary。
+                          ),
+                          log_before_model],
             checkpointer= InMemorySaver() # 引入临时会话保存点
         )
 
