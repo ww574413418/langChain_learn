@@ -26,7 +26,7 @@ class BaseModelFactory(ABC):
 
 
 class ChatModelFactory(BaseModelFactory):
-    def generator(self) -> Optional[Embeddings | BaseModel ]:
+    def generator(self) -> ChatOpenAI:
         return ChatOpenAI(
             model=rag_config["chat_model_name"],
             api_key=api_key,
@@ -34,11 +34,11 @@ class ChatModelFactory(BaseModelFactory):
         )
 
 class EmbeddingFactory(BaseModelFactory):
-    def generator(self) -> Optional[Embeddings | BaseModel ]:
+    def generator(self) -> Embeddings:
         return OllamaEmbeddings(model=rag_config["embedding_model_name"])
 
 class EmbeddingFactorySilicon(BaseModelFactory):
-    def generator(self) -> Optional[Embeddings | BaseModel ]:
+    def generator(self) -> Embeddings:
         return OpenAIEmbeddings(
             api_key=api_key,
             base_url=base_url,
@@ -72,7 +72,7 @@ class RerankerRunnableFactory(BaseModelFactory) :
         return RerankerRunnable(reranker=reranker_client)
 
 
-chat_model = ChatModelFactory().generator()
+chat_model:ChatOpenAI = ChatModelFactory().generator()
 embedding_model = EmbeddingFactory().generator()
 embedding_model_silicon = EmbeddingFactorySilicon().generator()
 reranking_model_silicon = RerankingFactorySilicon().generator()

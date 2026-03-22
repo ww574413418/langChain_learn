@@ -24,7 +24,8 @@ if "history_messages" not in st.session_state:
 for message in st.session_state["history_messages"]:
     st.chat_message(message["role"]).write(message["content"])
 
-
+if "user_id" not in st.session_state:
+    st.session_state["user_id"] = "0001"
 
 # user input prompt
 prompt = st.chat_input()
@@ -35,7 +36,7 @@ if prompt:
 
     response_message = []
     with st.spinner(text="thinking..."):
-        result = st.session_state["agent"].execute_stream(prompt,st.session_state["thread_id"])
+        result = st.session_state["agent"].execute_stream(prompt,st.session_state["thread_id"],st.session_state["user_id"])
 
         def stream_result(generator,cache_list):
             for chunk in generator:

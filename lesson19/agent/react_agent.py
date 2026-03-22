@@ -8,6 +8,8 @@ from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain_core.messages import AIMessage,ToolMessage
 from langchain.agents.middleware import SummarizationMiddleware
+from memory.profile_extratcor import extractor_userProfile_patch
+from memory.profile_store import update_user_profile
 
 class ReactAgent:
 
@@ -29,7 +31,9 @@ class ReactAgent:
             checkpointer= InMemorySaver() # 引入临时会话保存点
         )
 
-    def execute_stream(self,query:str,thread_id:str):
+
+
+    def execute_stream(self,query:str,thread_id:str,user_id:str):
         input_dic = {
             "messages":
                 [{"role": "user", "content": query}]
@@ -40,8 +44,12 @@ class ReactAgent:
                 "thread_id":thread_id
             }
         }
+        userProfile_patch = extractor_userProfile_patch(query)
+        if userProfile_patch:
+            update_user_profile(user_id,userProfile_patch)
+
         # context={"report":False} 就是切换prompt的标志
-        res = self.agent.stream(input_dic,stream_mode="values",context={"report":False},config=config)
+        res = self.agent.stream(input_dic,stream_mode="values",context={"report":False,"user_id":user_id},config=config)
 
         for chunk in res:
             latest_message = chunk["messages"][-1]
@@ -61,7 +69,7 @@ class ReactAgent:
 agent = ReactAgent()
 
 if __name__ == '__main__':
-    res = agent.execute_stream("APP无法连接机器人怎么办？","123123")
+    res = agent.execute_stream("我家有1条狗,有地毯,住在北京,我想要选购一台扫地机器人","123123","0001")
     for chunk in res:
         print(chunk,end="",flush=True)
 

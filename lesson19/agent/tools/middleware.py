@@ -9,6 +9,7 @@ from utils.logger_handler import logger as log
 from utils.prompts_loader import load_system_prompt,load_report_prompt
 from langchain.messages import RemoveMessage
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
+from memory.profile_store import get_user_profile
 
 @wrap_tool_call
 def monitor_tool(
@@ -48,6 +49,61 @@ def log_before_model(
         )
     return None
 
+def format_user_profile(user_profile: dict) -> str:
+
+    lines = ["当前用户画像："]
+
+    # 宠物
+    pets = user_profile.get("pets", {})
+    pet_parts = []
+    cat_count = pets.get("cat")
+    dog_count = pets.get("dog")
+
+    if cat_count:
+        pet_parts.append(f"{cat_count}只猫")
+    if dog_count:
+        pet_parts.append(f"{dog_count}条狗")
+
+    if pet_parts:
+        lines.append(f"- 宠物：{'，'.join(pet_parts)}")
+    else:
+        lines.append("- 宠物：暂无")
+
+    # 预算
+    budget = user_profile.get("budget")
+    lines.append(f"- 预算：{budget}" if budget is not None else "- 预算：暂无")
+
+    # 城市
+    location = user_profile.get("location")
+    lines.append(f"- 城市：{location}" if location else "- 城市：暂无")
+
+    # 偏好
+    preferences = user_profile.get("preferences", {})
+    pref_parts = []
+    if preferences.get("low_noise"):
+        pref_parts.append("低噪音")
+    if preferences.get("easy_maintenance"):
+        pref_parts.append("易维护")
+
+    if pref_parts:
+        lines.append(f"- 偏好：{'、'.join(pref_parts)}")
+    else:
+        lines.append("- 偏好：暂无")
+
+    # 家庭环境
+    home_features = user_profile.get("home_features", {})
+    env_parts = []
+    if home_features.get("carpet"):
+        env_parts.append("有地毯")
+
+    if env_parts:
+        lines.append(f"- 家庭环境：{'、'.join(env_parts)}")
+    else:
+        lines.append("- 家庭环境：暂无")
+
+    return "\n".join(lines)
+
+
 @dynamic_prompt # 每一次在生成提示词之前调用
 def report_prompt_switch(request:ModelRequest):
     '''
@@ -56,11 +112,22 @@ def report_prompt_switch(request:ModelRequest):
     '''
     is_report= request.runtime.context.get("report",False)
 
+    is_user_id = request.runtime.context.get("user_id",None)
+
     # 需要report提示模板
     if is_report:
         return load_report_prompt()
 
-    return load_system_prompt()
+    base_prompt = load_system_prompt()
+
+    if not is_user_id:
+        return base_prompt
+
+    user_profile = get_user_profile(is_user_id)
+    profile_text = format_user_profile(user_profile)
+    log.info(f"[report_prompt_switch] user profile:{profile_text}")
+
+    return f"{base_prompt} \n\n{profile_text}"
 
 
 @before_model

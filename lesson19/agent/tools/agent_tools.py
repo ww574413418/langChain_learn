@@ -84,6 +84,7 @@ def fetch_external_data(user_id:str|int,month:str)->str:
         log.error(f"fetch_external_data can not find user:{user_id}")
 
 
+
 @tool(description="automatically calls its middleware to populate the report context. "
                   "This function is self-contained (no parameters/return value); "
                   "the context is injected dynamically upon execution.")

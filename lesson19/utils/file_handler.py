@@ -1,7 +1,7 @@
 import hashlib
 import os
 from langchain_core.documents import Document
-from langchain_community.document_loaders import PyPDFLoader,TextLoader
+from langchain_community.document_loaders import PyPDFLoader,TextLoader,JSONLoader
 from .logger_handler import logger as log
 
 def get_file_md5_hex(file_path:str)->str:
@@ -62,3 +62,6 @@ def pdf_loader(file_path:str,password:str=None)->list[Document]:
 
 def text_loader(file_path:str,encoding:str="utf-8")->list[Document]:
     return TextLoader(file_path,encoding=encoding).load()
+
+def json_loader(file_path:str)->dict:
+    return JSONLoader(file_path).load()
