@@ -8,8 +8,9 @@ from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain_core.messages import AIMessage,ToolMessage
 from langchain.agents.middleware import SummarizationMiddleware
-from memory.profile_extratcor import extractor_userProfile_patch
-from memory.profile_store import update_user_profile
+from memory.profile_extractor import extractor_userProfile_patch
+from memory.profile_store import update_user_profile, get_user_profile
+from utils.logger_handler import logger as log
 
 class ReactAgent:
 
@@ -44,7 +45,10 @@ class ReactAgent:
                 "thread_id":thread_id
             }
         }
-        userProfile_patch = extractor_userProfile_patch(query)
+
+        current_profile = get_user_profile(user_id)
+        userProfile_patch = extractor_userProfile_patch(query,current_profile)
+
         if userProfile_patch:
             update_user_profile(user_id,userProfile_patch)
 
@@ -69,7 +73,7 @@ class ReactAgent:
 agent = ReactAgent()
 
 if __name__ == '__main__':
-    res = agent.execute_stream("我家有1条狗,有地毯,住在北京,我想要选购一台扫地机器人","123123","0001")
+    res = agent.execute_stream("我搬到北京了,买了一只猫,现在的家有一个大阳台,房东自带一个老扫地机器,不能拖地,我想换一个扫拖一体的,我的预算2000","123123","0001")
     for chunk in res:
         print(chunk,end="",flush=True)
 

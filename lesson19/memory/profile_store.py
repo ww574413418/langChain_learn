@@ -30,8 +30,10 @@ def build_default_profile():
             "easy_maintenance": False
         },
         "home_features": {
-            "carpet": False
-        }
+        "carpet": False,
+        "balcony": False
+        },
+        "other_facts": []
     }
 
 
@@ -55,8 +57,8 @@ def get_user_profile(user_id:str|int) -> dict:
     profile_path = get_user_profile_path(user_id)
     user_profile = load_profile_from_file(profile_path)
     if not user_profile:
-        default_profile = build_default_profile()
-        save_profile_to_file(profile_path, default_profile)
+        user_profile = build_default_profile()
+        save_profile_to_file(profile_path, user_profile)
     USER_PROFILES[user_id] = user_profile
     return user_profile
 
@@ -78,23 +80,55 @@ def update_user_profile(user_id:str|int,patch:dict) -> bool:
     save_profile_to_file(get_user_profile_path(user_id),updated_user_profile)
     return True
 
-def merge_profile(user_profile:dict,patch:dict)->dict:
+def normalize_fact(text: str) -> str:
+    return text.strip()
+
+def merge_unique_list(old_list: list[str], new_list: list[str]) -> list[str]:
     '''
-    根据patch的内容,更新user_profile
+    处理list append之后的重复信息
+    :param old_list:
+    :param new_list:
+    :return:
+    '''
+    result = []
+    seen = set()
+
+    for item in old_list + new_list:
+        if not isinstance(item, str):
+            continue
+        normalized = normalize_fact(item)
+        if not normalized:
+            continue
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        result.append(normalized)
+
+    return result
+
+def merge_profile(user_profile: dict, patch: dict) -> dict:
+    '''
+    将user profile信息递归更新
     :param user_profile:
     :param patch:
     :return:
     '''
-    for key,value in patch.items():
-        if key in user_profile:#key在user_profile中
-            if isinstance(user_profile[key],dict):#user_profile[key]是dict,且套字段,则递归调用
-                user_profile[key] = merge_profile(user_profile[key],value)
+    for key, value in patch.items():
+        if key == "other_facts" and isinstance(value, list):
+            old_list = user_profile.get("other_facts", [])
+            user_profile["other_facts"] = merge_unique_list(old_list, value)
+            continue
+
+        if key in user_profile:
+            if isinstance(user_profile[key], dict) and isinstance(value, dict):
+                user_profile[key] = merge_profile(user_profile[key], value)
             else:
                 user_profile[key] = value
         else:
             user_profile[key] = value
 
     return user_profile
+
 
 if __name__ == '__main__':
     get_user_profile("0001")

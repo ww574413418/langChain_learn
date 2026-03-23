@@ -59,9 +59,9 @@ def format_user_profile(user_profile: dict) -> str:
     cat_count = pets.get("cat")
     dog_count = pets.get("dog")
 
-    if cat_count:
+    if cat_count is not None:
         pet_parts.append(f"{cat_count}只猫")
-    if dog_count:
+    if dog_count is not None:
         pet_parts.append(f"{dog_count}条狗")
 
     if pet_parts:
@@ -96,10 +96,17 @@ def format_user_profile(user_profile: dict) -> str:
     if home_features.get("carpet"):
         env_parts.append("有地毯")
 
+    if home_features.get("balcony"):
+        env_parts.append("有阳台")
+
     if env_parts:
         lines.append(f"- 家庭环境：{'、'.join(env_parts)}")
     else:
         lines.append("- 家庭环境：暂无")
+
+    other_facts = user_profile.get("other_facts", [])
+    if other_facts:
+        lines.append(f"- 其他长期信息：{'；'.join(other_facts)}")
 
     return "\n".join(lines)
 
