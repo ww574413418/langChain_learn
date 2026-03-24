@@ -92,5 +92,22 @@ def extract_userprofile_prompt() -> dict:
         log.error(f"not found system prompt file:{extract_user_query_prompt_path}")
         raise e
 
+def select_memory_plan_prompt() -> dict:
+    '''
+    导入记忆选择prompt
+    '''
+    try:
+        select_memoryplan_prompt_path = get_abs_path(prompts_config["select_memoryplan_prompt_path"])
+    except KeyError as e:
+        log.error(f"not found report_prompt_path please check your config:{prompts_config}")
+        raise e
+
+    try:
+        with open(select_memoryplan_prompt_path,"r",encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError as e:
+        log.error(f"not found system prompt file:{select_memoryplan_prompt_path}")
+        raise e
+
 if __name__ == '__main__':
     print(load_system_prompt())

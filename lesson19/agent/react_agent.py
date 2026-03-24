@@ -73,8 +73,13 @@ class ReactAgent:
 agent = ReactAgent()
 
 if __name__ == '__main__':
-    res = agent.execute_stream("我搬到北京了,买了一只猫,现在的家有一个大阳台,房东自带一个老扫地机器,不能拖地,我想换一个扫拖一体的,我的预算2000","123123","0001")
+    res = agent.execute_stream("扫地机器人和洗地机有什么区别","123123","0001")
     for chunk in res:
         print(chunk,end="",flush=True)
+
+    print("---"*20)
+    res = agent.execute_stream("我家有猫，预算 2000，想买个安静点的", "123123", "0001")
+    for chunk in res:
+        print(chunk, end="", flush=True)
 
 

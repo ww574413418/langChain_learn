@@ -5,11 +5,15 @@ from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.runtime import Runtime
 from langgraph.types import Command
+from sympy.physics.units import current
+
 from utils.logger_handler import logger as log
 from utils.prompts_loader import load_system_prompt,load_report_prompt
 from langchain.messages import RemoveMessage
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
 from memory.profile_store import get_user_profile
+from memory.profile_recall import recall_profile_for_query,format_recalled_profile
+from memory.memory_selector import select_memory_plan,pick_profile_fields,format_profile_subset
 
 @wrap_tool_call
 def monitor_tool(
@@ -121,6 +125,8 @@ def report_prompt_switch(request:ModelRequest):
 
     is_user_id = request.runtime.context.get("user_id",None)
 
+    # 获取用户的query
+    current_query = request.state["messages"][-1].content
     # 需要report提示模板
     if is_report:
         return load_report_prompt()
@@ -131,8 +137,16 @@ def report_prompt_switch(request:ModelRequest):
         return base_prompt
 
     user_profile = get_user_profile(is_user_id)
-    profile_text = format_user_profile(user_profile)
-    log.info(f"[report_prompt_switch] user profile:{profile_text}")
+    # 根据用户提问来抽出需要查询的字段
+    memory_plan = select_memory_plan(current_query)
+    log.info(f"[report_prompt_switch] memory plan: {memory_plan}")
+    # 通过用户画像字段来查询长期记忆片段
+    profile_text = pick_profile_fields(user_profile,memory_plan.profile_fields)
+    log.info(f"[report_prompt_switch] current query: {current_query}")
+    log.info(f"[report_prompt_switch] recalled profile: {profile_text}")
+
+    if not profile_text:
+        return base_prompt
 
     return f"{base_prompt} \n\n{profile_text}"
 
