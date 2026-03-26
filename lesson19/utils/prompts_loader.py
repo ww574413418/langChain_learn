@@ -109,5 +109,41 @@ def select_memory_plan_prompt() -> dict:
         log.error(f"not found system prompt file:{select_memoryplan_prompt_path}")
         raise e
 
+def extract_memory_notes_prompt() -> dict:
+    '''
+    从用户query种抽去事实性的记忆,但又不用存储在用户画像的内容
+    '''
+    try:
+        extract_memory_notes_prompt_path = get_abs_path(prompts_config["extract_memory_notes_prompt_path"])
+    except KeyError as e:
+        log.error(f"not found report_prompt_path please check your config:{prompts_config}")
+        raise e
+
+    try:
+        with open(extract_memory_notes_prompt_path,"r",encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError as e:
+        log.error(f"not found system prompt file:{extract_memory_notes_prompt_path}")
+        raise e
+
+def classify_fact_spans_prompt() -> dict:
+    '''
+    从用户query种抽去事实性的记忆,但又不用存储在用户画像的内容
+    '''
+    try:
+        classify_fact_spans_path = get_abs_path(prompts_config["classify_fact_spans_path"])
+    except KeyError as e:
+        log.error(f"not found report_prompt_path please check your config:{prompts_config}")
+        raise e
+
+    try:
+        with open(classify_fact_spans_path,"r",encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError as e:
+        log.error(f"not found system prompt file:{classify_fact_spans_path}")
+        raise e
+
+
+
 if __name__ == '__main__':
     print(load_system_prompt())
