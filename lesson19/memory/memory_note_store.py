@@ -1,3 +1,5 @@
+import re
+
 from pydantic import BaseModel,Field
 import json
 import os
@@ -8,81 +10,255 @@ from datetime import datetime
 class MemoryNote(BaseModel):
     id:str = Field(description="note id")
     text:str = Field(description="记忆内容")
-    keywords:list[str] = Field(default=list,description="便于检索的关键词")
+    category: str = Field(description="记忆类别")
+    keywords: list[str] = Field(default=list, description="便于检索的关键词")
+    scope:str = Field(description="session or global")
+    source_thread_id:str | None = Field(default=None)
+    confidence:float = Field(default=0.8)
     created_at:str = Field(description="创建者时间")
     updated_at:str = Field(description="更新时间")
-    category: str = Field(description="记忆类别")
+    last_seen_at:str
+    status:str = Field(default="active")
+
+
 
 
 def get_memory_notes_path(user_id:str|int)->str:
     return get_abs_path(f"memory/memory_notes/{user_id}.json")
 
 
-def load_memory_notes(user_id:str|int) ->list[dict]:
-    memory_notes_path = get_memory_notes_path(user_id)
-    if not os.path.exists(memory_notes_path):
-        return []
+def get_global_notes_path(user_id:str|int)->str:
+    return get_abs_path(f"memory/global_notes/{user_id}.json")
 
+def get_session_notes_path(thread_id:str|int)->str:
+    return get_abs_path(f"memory/session_notes/{thread_id}.json")
+
+
+def load_notes(path:str) -> list[dict]:
+    if not os.path.exists(path):
+        return []
     try:
-        with open(memory_notes_path,"r",encoding="utf-8") as f:
-            memory_notes = json.load(f)
-            return memory_notes
-    except Exception as e:
-        print(f"load memory notes error:{e}")
-        log.error(f"load memory notes error:{e}")
+        with open(path,"r",encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
         return []
 
-def save_memory_notes(user_id:str|int,notes:list[dict]) -> None:
-    '''
-    将notes保存到本地
-    :param user_id:
-    :param notes:
-    :return:
-    '''
-    memory_notes_path = get_memory_notes_path(user_id)
-    os.makedirs(os.path.dirname(memory_notes_path),exist_ok=True)
-
-    with open(memory_notes_path,"w",encoding="utf-8") as f:
+def save_notes(path:str,notes:list[dict])->None:
+    os.makedirs(os.path.dirname(path),exist_ok=True)
+    with open(path,"w",encoding="utf-8") as f:
         json.dump(notes,f,ensure_ascii=False,indent=2)
 
-def normalize_note_text(text: str) -> str:
-    return text.strip()
+
+def load_session_notes(thread_id:str|int):
+    return load_notes(get_session_notes_path(thread_id))
+
+def load_global_notes(user_id:str|int) ->list[dict]:
+    return load_notes(get_global_notes_path(user_id))
 
 
-def find_existing_note(notes: list[dict], text: str) -> dict | None:
-    normalized = normalize_note_text(text)
-    for note in notes:
-        if normalize_note_text(note.get("text", "")) == normalized:
-            return note
-    return None
+def append_session_note(
+        user_id:str|int,
+        source_thread_id:str,
+        text:str,
+        keywords:list[str] | None,
+        category:str,
+) ->dict:
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    path = get_session_notes_path(source_thread_id)
+    notes = load_notes(path)
+    confidence = estimate_note_confidence(text,category,keywords)
 
+    for existing_note in notes:
+        if existing_note.get("category") != category:
+            continue
 
-def add_memory_note(user_id:str|int,text:str,keywords:list[str],category:str="other") -> dict:
-    notes:list = load_memory_notes(user_id)
+        old_text = existing_note.get("text","")
+
+        if is_same_note(old_text,text) or is_contained_note(old_text,text):
+            merge = merge_note(existing_note,text,keywords,confidence)
+            save_notes(path,notes)
+            return merge
+
     note = MemoryNote(
-        id=f"note_{len(notes) + 1}",
+        id=f"session_note_{len(notes) + 1}",
+        user_id=user_id,
         text=text,
-        keywords=keywords,
+        keywords=keywords or [],
         category=category,
+        confidence=confidence,
+        source_thread_id=source_thread_id,
         created_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        updated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        updated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        last_seen_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        scope="session"
     )
-    existing_note = find_existing_note(notes,text)
-    if existing_note:
-        old_keywords = existing_note.get("keywords", [])
-        merged_keywords = list(dict.fromkeys(old_keywords + (keywords or [])))
-        existing_note["keywords"] = merged_keywords
-        existing_note["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        if not existing_note.get("category"):
-            existing_note["category"] = category
-        save_memory_notes(user_id, notes)
-        return existing_note
-    log.info(f"add_memory_note:{note}")
+
     notes.append(note.model_dump())
-    save_memory_notes(user_id,notes)
+    save_notes(path,notes)
     return note.model_dump()
 
+
+
+def estimate_note_confidence(text:str,category:str,keywords:list[str]|None = None)->float:
+    score = {
+        "home": 0.85,
+        "device": 0.85,
+        "preference": 0.65,
+        "demand": 0.8,
+        "other": 0.65,
+    }.get(category, 0.60)
+
+    keywords = keywords or []
+
+    if any(word in text for word in ["可能", "说明", "应该", "推测"]):
+        score -= 0.20
+
+    if len(text) > 40:
+        score -= 0.05
+
+    if len(keywords) >= 2:
+        score += 0.03
+
+    return max(0.0, min(score, 0.95))
+
+def normalize_note_text(text:str)->str:
+    text = text.strip()
+    text = re.sub(r"[，。！？；：、“”‘’（）()、\s,.!?;:]", "", text)
+    return text
+
+def is_same_note(text1:str,text2:str)->bool:
+    '''
+    2个文本完全想到
+    :param text1:
+    :param text2:
+    :return:
+    '''
+    return normalize_note_text(text1) == normalize_note_text(text2)
+
+def is_contained_note(text1:str,text2:str)->bool:
+    '''
+    判断2个文本是否包含
+    :param text1:
+    :param text2:
+    :return:
+    '''
+    t1 = normalize_note_text(text1)
+    t2 = normalize_note_text(text2)
+    if not t1 or not t2:
+        return False
+    return t1 in t2 or t2 in t1
+
+
+def merge_note(existing_note:dict,text:str,keywords:list[str],confidence:float)->dict:
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    old_text = existing_note.get("text","")
+    if len(normalize_note_text(text)) > len(normalize_note_text(old_text)):
+        existing_note["text"] = text
+
+    old_keywords = existing_note.get("keywords", [])
+    existing_note["keywords"] = list(dict.fromkeys(old_keywords + (keywords or [])))
+    existing_note["updated_at"] = now
+    existing_note["last_seen_at"] = now
+    existing_note["confidence"] = max(existing_note.get("confidence",0.0), confidence)
+
+    return existing_note
+
+def keyword_overlap_count(note1:dict,note2:dict)->int:
+    '''
+    返回更长的keywords的
+    :param note1:
+    :param note2:
+    :return:
+    '''
+    k1 = set(note1.get("keywords",[]))
+    k2 = set(note2.get("keywords",[]))
+    return len(k1 & k2)
+
+def should_merge_notes(note1:dict,note2:dict)->bool:
+    '''
+    判断是否需要合并
+    :param note1:
+    :param note2:
+    :return:
+    '''
+    if note1.get("category") != note2.get("category"):
+        return False
+    if is_same_note(note1.get("text",""),note2.get("text","")):
+        return True
+    if is_contained_note(note1.get("text",""),note2.get("text","")):
+        return True
+    if keyword_overlap_count(note1,note2) >=2:
+        return True
+
+    return False
+
+def merge_notes_records(note1:dict,note2:dict)->dict:
+    '''
+    将session notes合并成global session
+    :param note1:
+    :param note2:
+    :return:
+    '''
+    text1 = note1.get("text","")
+    text2 = note2.get("text","")
+
+    batter_text = text1
+    if len(normalize_note_text(text2)) > len(normalize_note_text(text1)):
+        batter_text = text2
+
+    merged_keywords = list(dict.fromkeys(note1.get("keywords", []) + note2.get("keywords", [])))
+
+    return {
+        **note1,
+        "text": batter_text,
+        "keywords": merged_keywords,
+        "confidence":max(note1.get("confidence",0),note2.get("confidence",0)),
+        "updated_at":max(note1.get("updated_at",""),note2.get("updated_at","")),
+        "last_seen_at":max(note1.get("last_seen_at",""),note2.get("last_seen_at","")),
+        "scope":"global"
+    }
+
+def clear_session_notes(thread_id: str | int) -> None:
+    save_notes(get_session_notes_path(thread_id), [])
+
+def consolidate_session_notes(user_id:str|int,thread_id:str|int)->list[dict]:
+    '''
+
+    :param user_id:
+    :param thread_id:
+    :return:
+    '''
+
+    session_notes = load_session_notes(thread_id)
+    global_notes = load_global_notes(user_id)
+
+    working_notes = global_notes[:]
+
+    for session_note in session_notes:
+        merged = False
+
+        for i,global_note in enumerate(working_notes):
+            if should_merge_notes(global_note,session_note):
+                working_notes[i] = merge_notes_records(global_note,session_note)
+                merged = True
+                break
+
+        if not merged:
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            new_note = dict(session_note)
+            new_note["id"] = f"global_{len(working_notes)}"
+            new_note["scope"] = "global"
+            new_note["updated_at"] = now
+            new_note["last_seen_at"] = now
+            working_notes.append(new_note)
+
+    save_notes(get_global_notes_path(user_id),working_notes)
+    clear_session_notes(thread_id)
+    return working_notes
+
+
 if __name__ == "__main__":
-    print(add_memory_note("0001", "房东自带老扫地机器，不能拖地", ["扫地机", "不能拖地"]))
-    print(add_memory_note("0001", "家里有一个大阳台，容易落灰", ["阳台", "落灰"]))
-    print(load_memory_notes("0001"))
+    print(append_session_note("0001", "123123","房东自带老扫地机器，不能拖地", ["扫地机", "不能拖地"], "device"))
+    print(append_session_note("0001", "123123","房东自带老扫地机器，不能拖地", ["扫地机", "不能拖地"], "device"))
+    # print(append_session_note("0001", "家里有一个大阳台，容易落灰", ["阳台", "落灰"]))
+    consolidate_session_notes("0001", "123123")

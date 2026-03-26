@@ -10,7 +10,7 @@ from langchain_core.messages import AIMessage,ToolMessage
 from langchain.agents.middleware import SummarizationMiddleware
 from memory.profile_extractor import extractor_userProfile_patch
 from memory.profile_store import update_user_profile, get_user_profile
-from memory.memory_note_store import add_memory_note
+from memory.memory_note_store import append_session_note,consolidate_session_notes
 from memory.memory_note_extractor import extract_candidate_notes
 from utils.logger_handler import logger as log
 
@@ -59,10 +59,10 @@ class ReactAgent:
             for note in note_result.notes:
                 if note.category == "other":
                     continue
-                add_memory_note(user_id,note.text,note.keywords,note.category)
+                append_session_note(user_id,thread_id,note.text,note.keywords,note.category)
 
         # context={"report":False} 就是切换prompt的标志
-        res = self.agent.stream(input_dic,stream_mode="values",context={"report":False,"user_id":user_id},config=config)
+        res = self.agent.stream(input_dic,stream_mode="values",context={"report":False,"user_id":user_id,"thread_id":thread_id},config=config)
 
         for chunk in res:
             latest_message = chunk["messages"][-1]
@@ -77,8 +77,8 @@ class ReactAgent:
                     continue
                 if latest_message.content:
                     yield latest_message.content.strip() + "\n"
-
-
+        # 每次只一次之后,将session note整理成global note
+        consolidate_session_notes(user_id,thread_id)
 agent = ReactAgent()
 
 if __name__ == '__main__':
