@@ -22,7 +22,6 @@ class UserProfilePatch(BaseModel):
     location:Optional[str] = Field(default=None,description="位置")
     preferences:Optional[PreferencePatch] = None
     home_features:Optional[HomeFeaturePatch] = None
-    other_facts: Optional[list[str]] = None
 
 def prune_empty_fields(data):
     '''

@@ -85,14 +85,14 @@ if __name__ == '__main__':
     # res = agent.execute_stream("扫地机器人和洗地机有什么区别","123123","0001")
     # for chunk in res:
     #     print(chunk,end="",flush=True)
-    #
+
     # print("---"*20)
     # res = agent.execute_stream("我家有猫，预算 2000，想买个安静点的", "123123", "0001")
     # for chunk in res:
     #     print(chunk, end="", flush=True)
 
     print("---" * 20)
-    res = agent.execute_stream("我朋友家有一个大平台,没有封窗,秋冬天的时候会积灰,而且有点冷,希望有一个机器人能够解决扫地和拖地", "123123", "0001")
+    res = agent.execute_stream("房东自带的老扫地机不能拖地，这种情况我该换什么？", "123123", "0001")
     for chunk in res:
         print(chunk, end="", flush=True)
 

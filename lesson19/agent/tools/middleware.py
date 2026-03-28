@@ -5,15 +5,13 @@ from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.runtime import Runtime
 from langgraph.types import Command
-from sympy.physics.units import current
-
 from utils.logger_handler import logger as log
 from utils.prompts_loader import load_system_prompt,load_report_prompt
 from langchain.messages import RemoveMessage
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
 from memory.profile_store import get_user_profile
-from memory.profile_recall import recall_profile_for_query,format_recalled_profile
 from memory.memory_selector import select_memory_plan,pick_profile_fields,format_profile_subset
+from memory.memory_retriever import retrieve_relevant_notes,format_retrieved_notes
 
 @wrap_tool_call
 def monitor_tool(
@@ -53,67 +51,6 @@ def log_before_model(
         )
     return None
 
-def format_user_profile(user_profile: dict) -> str:
-
-    lines = ["当前用户画像："]
-
-    # 宠物
-    pets = user_profile.get("pets", {})
-    pet_parts = []
-    cat_count = pets.get("cat")
-    dog_count = pets.get("dog")
-
-    if cat_count is not None:
-        pet_parts.append(f"{cat_count}只猫")
-    if dog_count is not None:
-        pet_parts.append(f"{dog_count}条狗")
-
-    if pet_parts:
-        lines.append(f"- 宠物：{'，'.join(pet_parts)}")
-    else:
-        lines.append("- 宠物：暂无")
-
-    # 预算
-    budget = user_profile.get("budget")
-    lines.append(f"- 预算：{budget}" if budget is not None else "- 预算：暂无")
-
-    # 城市
-    location = user_profile.get("location")
-    lines.append(f"- 城市：{location}" if location else "- 城市：暂无")
-
-    # 偏好
-    preferences = user_profile.get("preferences", {})
-    pref_parts = []
-    if preferences.get("low_noise"):
-        pref_parts.append("低噪音")
-    if preferences.get("easy_maintenance"):
-        pref_parts.append("易维护")
-
-    if pref_parts:
-        lines.append(f"- 偏好：{'、'.join(pref_parts)}")
-    else:
-        lines.append("- 偏好：暂无")
-
-    # 家庭环境
-    home_features = user_profile.get("home_features", {})
-    env_parts = []
-    if home_features.get("carpet"):
-        env_parts.append("有地毯")
-
-    if home_features.get("balcony"):
-        env_parts.append("有阳台")
-
-    if env_parts:
-        lines.append(f"- 家庭环境：{'、'.join(env_parts)}")
-    else:
-        lines.append("- 家庭环境：暂无")
-
-    other_facts = user_profile.get("other_facts", [])
-    if other_facts:
-        lines.append(f"- 其他长期信息：{'；'.join(other_facts)}")
-
-    return "\n".join(lines)
-
 
 @dynamic_prompt # 每一次在生成提示词之前调用
 def report_prompt_switch(request:ModelRequest):
@@ -124,6 +61,8 @@ def report_prompt_switch(request:ModelRequest):
     is_report= request.runtime.context.get("report",False)
 
     is_user_id = request.runtime.context.get("user_id",None)
+
+    thread_id = request.runtime.context.get("thread_id",None)
 
     # 获取用户的query
     current_query = request.state["messages"][-1].content
@@ -136,19 +75,45 @@ def report_prompt_switch(request:ModelRequest):
     if not is_user_id:
         return base_prompt
 
-    user_profile = get_user_profile(is_user_id)
     # 根据用户提问来抽出需要查询的字段
     memory_plan = select_memory_plan(current_query)
-    log.info(f"[report_prompt_switch] memory plan: {memory_plan}")
-    # 通过用户画像字段来查询长期记忆片段
-    profile_text = pick_profile_fields(user_profile,memory_plan.profile_fields)
-    log.info(f"[report_prompt_switch] current query: {current_query}")
-    log.info(f"[report_prompt_switch] recalled profile: {profile_text}")
 
-    if not profile_text:
+    log.info(f"[report_prompt_switch] memory plan: {memory_plan}")
+
+    memory_blocks = []
+
+    if memory_plan.need_profile:
+        user_profile = get_user_profile(is_user_id)
+        profile_subset = pick_profile_fields(user_profile, memory_plan.profile_fields)
+        profile_text = format_profile_subset(profile_subset)
+
+        log.info(f"[report_prompt_switch] profile subset: {profile_subset}")
+        log.info(f"[report_prompt_switch] profile text: {profile_text}")
+
+        if profile_text:
+            memory_blocks.append(profile_text)
+
+    if memory_plan.need_notes and thread_id:
+        note_query = memory_plan.note_query or current_query
+        user_notes = retrieve_relevant_notes(
+            user_id=is_user_id,
+            thread_id=thread_id,
+            note_query=note_query,
+            top_n=10,
+            top_k=memory_plan.top_k,
+        )
+        user_notes_text = format_retrieved_notes(user_notes)
+
+        log.info(f"[report_prompt_switch] note query: {note_query}")
+        log.info(f"[report_prompt_switch] recalled user notes: {user_notes_text}")
+
+        if user_notes_text:
+            memory_blocks.append(user_notes_text)
+
+    if not memory_blocks:
         return base_prompt
 
-    return f"{base_prompt} \n\n{profile_text}"
+    return f"{base_prompt}\n\n" + "\n\n".join(memory_blocks)
 
 
 @before_model

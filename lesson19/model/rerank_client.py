@@ -1,9 +1,8 @@
-import json
+
 import requests
 import os
 from dotenv import load_dotenv
 from langchain_core.documents import Document
-from utils.config_handler import chroma_config
 from utils.logger_handler import logger as log
 
 load_dotenv("/Users/grubby/Library/Mobile Documents/com~apple~CloudDocs/PycharmProjects/langChain/langChain_learn/env")
@@ -40,6 +39,7 @@ class SiliconRerankModel:
             print(f"rerank error,error={e}")
 
     def rerank_documents(self,query:str, docs:list[Document]):
+
         documents = [doc.page_content for doc in docs]
 
         rerank_docs = []

@@ -33,7 +33,6 @@ def build_default_profile():
         "carpet": False,
         "balcony": False
         },
-        "other_facts": []
     }
 
 

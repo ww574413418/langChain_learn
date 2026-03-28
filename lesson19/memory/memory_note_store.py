@@ -23,9 +23,6 @@ class MemoryNote(BaseModel):
 
 
 
-def get_memory_notes_path(user_id:str|int)->str:
-    return get_abs_path(f"memory/memory_notes/{user_id}.json")
-
 
 def get_global_notes_path(user_id:str|int)->str:
     return get_abs_path(f"memory/global_notes/{user_id}.json")
@@ -223,7 +220,7 @@ def clear_session_notes(thread_id: str | int) -> None:
 
 def consolidate_session_notes(user_id:str|int,thread_id:str|int)->list[dict]:
     '''
-
+    将session note 与 global notes合并
     :param user_id:
     :param thread_id:
     :return:
