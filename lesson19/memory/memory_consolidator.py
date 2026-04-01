@@ -7,6 +7,7 @@ from utils.prompts_loader import memory_consolidator_prompt
 from utils.logger_handler import logger as log
 from model.model_factory import chat_model
 from datetime import datetime
+from memory.memory_note_store import load_session_notes,load_global_notes,save_notes, get_global_notes_path,update_session_notes_status
 
 # 先产出显式决策，再执行决策。
 class ConsolidationDecision(BaseModel):
@@ -77,14 +78,17 @@ def validate_decision(
     if decision.relation_type == "same_fact":
         decision.action = "merge"
 
-    if decision.relation_type == "richer_version":
+    elif decision.relation_type == "richer_version":
         decision.action = "merge"
 
-    if decision.relation_type == "related_but_distinct":
+    elif decision.relation_type == "related_but_distinct":
         decision.action = "add"
         decision.target_global_id = None
+        decision.merged_text = session_text
+        decision.merged_keywords = session_keywords
+        decision.category = session_category
 
-    if decision.relation_type == "no_value":
+    elif decision.relation_type == "no_value":
         decision.action = "discard"
 
     if decision.category and decision.category not in valid_categories:
@@ -162,8 +166,10 @@ def build_decision_for_one_session_note(
     )
 
     result = structured_llm.invoke(prompt)
-    log.info(f"build_decision_for_one_session_note: {result}")
-    return validate_decision(result,session_note)
+    validated = validate_decision(result, session_note)
+    log.info(f"build_decision_for_one_session_note raw: {result}")
+    log.info(f"build_decision_for_one_session_note validated: {validated}")
+    return validated
 
 def build_consolidation_plan(
         session_notes:list[dict],
@@ -265,6 +271,24 @@ def consolidate_with_plan(
     return plan, apply_consolidation_plan(global_notes, plan)
 
 
+def consolidate_session_notes_with_plan(user_id: str | int, thread_id: str | int) -> list[dict]:
+    session_notes = load_session_notes(thread_id)
+    global_notes = load_global_notes(user_id)
+
+    if not session_notes:
+        return global_notes
+
+    plan = build_consolidation_plan(session_notes, global_notes)
+    updated_global_notes = apply_consolidation_plan(global_notes, plan)
+
+    save_notes(get_global_notes_path(user_id), updated_global_notes)
+
+    update_session_notes_status(
+        thread_id,
+        [decision.model_dump() for decision in plan.decisions],
+    )
+
+    return updated_global_notes
 
 
 if __name__ == "__main__":

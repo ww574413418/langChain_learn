@@ -11,18 +11,17 @@ class MemoryNote(BaseModel):
     id:str = Field(description="note id")
     text:str = Field(description="记忆内容")
     category: str = Field(description="记忆类别")
-    keywords: list[str] = Field(default=list, description="便于检索的关键词")
+    keywords: list[str] = Field(default_factory=list, description="便于检索的关键词")
     scope:str = Field(description="session or global")
     source_thread_id:str | None = Field(default=None)
     confidence:float = Field(default=0.8)
     created_at:str = Field(description="创建者时间")
     updated_at:str = Field(description="更新时间")
     last_seen_at:str
-    status:str = Field(default="active")
-
-
-
-
+    status: str = Field(default="pending") # pending 表示还在 staging area,promoted 表示已经沉淀进 global,discarded 表示已判断不进 global，但保留痕迹
+    consolidation_action: str | None = Field(default=None)
+    consolidated_at: str | None = Field(default=None)
+    target_global_id: str | None = Field(default=None)
 
 def get_global_notes_path(user_id:str|int)->str:
     return get_abs_path(f"memory/global_notes/{user_id}.json")
@@ -46,11 +45,63 @@ def save_notes(path:str,notes:list[dict])->None:
         json.dump(notes,f,ensure_ascii=False,indent=2)
 
 
-def load_session_notes(thread_id:str|int):
-    return load_notes(get_session_notes_path(thread_id))
+def load_session_notes(thread_id: str | int, include_history: bool = False):
+    notes = load_notes(get_session_notes_path(thread_id))
+    if include_history:
+        return notes
+
+    return [
+        note for note in notes
+        if note.get("status") == "pending"
+    ]
+
 
 def load_global_notes(user_id:str|int) ->list[dict]:
     return load_notes(get_global_notes_path(user_id))
+
+def update_session_notes_status(
+    thread_id: str | int,
+    decisions: list[dict],
+) -> list[dict]:
+    notes = load_notes(get_session_notes_path(thread_id))
+    if not notes:
+        return []
+
+    updated_notes = []
+    used_ids = set()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    for decision in decisions:
+        session_note_text = normalize_note_text(decision.get("session_note_text", ""))
+        action = decision.get("action")
+        target_global_id = decision.get("target_global_id")
+
+        for note in notes:
+            if note.get("id") in used_ids:
+                continue
+
+            if note.get("status", "pending") not in {"pending"}:
+                continue
+
+            if normalize_note_text(note.get("text", "")) != session_note_text:
+                continue
+
+            note["updated_at"] = now
+            note["consolidated_at"] = now
+            note["consolidation_action"] = action
+            note["target_global_id"] = target_global_id
+
+            if action == "discard":
+                note["status"] = "discarded"
+            else:
+                note["status"] = "promoted"
+
+            updated_notes.append(note)
+            used_ids.add(note.get("id"))
+            break
+
+    save_notes(get_session_notes_path(thread_id), notes)
+    return updated_notes
 
 
 def append_session_note(
@@ -67,6 +118,9 @@ def append_session_note(
 
     for existing_note in notes:
         if existing_note.get("category") != category:
+            continue
+
+        if existing_note.get("status") != "pending":
             continue
 
         old_text = existing_note.get("text","")
@@ -93,7 +147,6 @@ def append_session_note(
     notes.append(note.model_dump())
     save_notes(path,notes)
     return note.model_dump()
-
 
 
 def estimate_note_confidence(text:str,category:str,keywords:list[str]|None = None)->float:
@@ -218,44 +271,9 @@ def merge_notes_records(note1:dict,note2:dict)->dict:
 def clear_session_notes(thread_id: str | int) -> None:
     save_notes(get_session_notes_path(thread_id), [])
 
-def consolidate_session_notes(user_id:str|int,thread_id:str|int)->list[dict]:
-    '''
-    将session note 与 global notes合并
-    :param user_id:
-    :param thread_id:
-    :return:
-    '''
-
-    session_notes = load_session_notes(thread_id)
-    global_notes = load_global_notes(user_id)
-
-    working_notes = global_notes[:]
-
-    for session_note in session_notes:
-        merged = False
-
-        for i,global_note in enumerate(working_notes):
-            if should_merge_notes(global_note,session_note):
-                working_notes[i] = merge_notes_records(global_note,session_note)
-                merged = True
-                break
-
-        if not merged:
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            new_note = dict(session_note)
-            new_note["id"] = f"global_{len(working_notes)}"
-            new_note["scope"] = "global"
-            new_note["updated_at"] = now
-            new_note["last_seen_at"] = now
-            working_notes.append(new_note)
-
-    save_notes(get_global_notes_path(user_id),working_notes)
-    clear_session_notes(thread_id)
-    return working_notes
 
 
 if __name__ == "__main__":
     print(append_session_note("0001", "123123","房东自带老扫地机器，不能拖地", ["扫地机", "不能拖地"], "device"))
     print(append_session_note("0001", "123123","房东自带老扫地机器，不能拖地", ["扫地机", "不能拖地"], "device"))
     # print(append_session_note("0001", "家里有一个大阳台，容易落灰", ["阳台", "落灰"]))
-    consolidate_session_notes("0001", "123123")

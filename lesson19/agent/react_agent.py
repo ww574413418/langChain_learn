@@ -10,9 +10,10 @@ from langchain_core.messages import AIMessage,ToolMessage
 from langchain.agents.middleware import SummarizationMiddleware
 from memory.profile_extractor import extractor_userProfile_patch
 from memory.profile_store import update_user_profile, get_user_profile
-from memory.memory_note_store import append_session_note,consolidate_session_notes
+from memory.memory_note_store import append_session_note
 from memory.memory_note_extractor import extract_candidate_notes
 from utils.logger_handler import logger as log
+from memory.memory_consolidator import consolidate_session_notes_with_plan
 from memory.memory_note_filter import filter_candidate_notes
 
 class ReactAgent:
@@ -34,8 +35,6 @@ class ReactAgent:
                           log_before_model],
             checkpointer= InMemorySaver() # 引入临时会话保存点
         )
-
-
 
     def execute_stream(self,query:str,thread_id:str,user_id:str):
         input_dic = {
@@ -66,6 +65,11 @@ class ReactAgent:
             for decision in filtered_notes:
                 if not decision.keep:
                     continue
+                if not decision.normalized_text:
+                    continue
+                if not decision.category:
+                    continue
+
                 append_session_note(user_id,
                                     thread_id,
                                     decision.normalized_text,
@@ -89,13 +93,13 @@ class ReactAgent:
                 if latest_message.content:
                     yield latest_message.content.strip() + "\n"
         # 每次只一次之后,将session note整理成global note
-        consolidate_session_notes(user_id,thread_id)
+        consolidate_session_notes_with_plan(user_id,thread_id)
 agent = ReactAgent()
 
 if __name__ == '__main__':
-    res = agent.execute_stream("扫地机器人和洗地机有什么区别","123123","0001")
-    for chunk in res:
-        print(chunk,end="",flush=True)
+    # res = agent.execute_stream("扫地机器人和洗地机有什么区别","123123","0001")
+    # for chunk in res:
+    #     print(chunk,end="",flush=True)
 
     print("---"*20)
     res = agent.execute_stream("想买个安静点的扫地机", "123123", "0001")
@@ -106,5 +110,3 @@ if __name__ == '__main__':
     res = agent.execute_stream("房东自带的老扫地机不能拖地", "123123", "0001")
     for chunk in res:
         print(chunk, end="", flush=True)
-
-
