@@ -160,5 +160,20 @@ def memory_consolidator_prompt() -> dict:
         log.error(f"not found system prompt file:{memory_consolidator_prompt_path}")
         raise e
 
+
+def memory_note_filter_prompt() -> str:
+    try:
+        memory_note_filter_prompt_path = get_abs_path(prompts_config["memory_note_filter_prompt_path"])
+    except KeyError as e:
+        log.error(f"not found memory_note_filter_prompt_path in prompts config: {prompts_config}")
+        raise e
+
+    try:
+        with open(memory_note_filter_prompt_path, "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError as e:
+        log.error(f"not found memory note filter prompt file: {memory_note_filter_prompt_path}")
+        raise e
+
 if __name__ == '__main__':
     print(load_system_prompt())

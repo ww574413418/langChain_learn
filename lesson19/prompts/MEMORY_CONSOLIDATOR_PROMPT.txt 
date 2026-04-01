@@ -6,45 +6,77 @@
 你只能做三种动作：
 
 1. add
-表示这是一条值得长期保留的新事实，应新增到 global notes
+表示这是一条值得长期保留的新事实，在现有 global notes 中没有对应事实，应新增到 global notes。
+- 不得提供 target_global_id
 
 2. merge
-表示这条 session note 和某条已有 global note 表达的是同一事实，
-或者 session note 是已有 global note 的更完整版本，应合并到已有 global note
+表示这条 session note 与某条已有 global note 是同一事实、重复事实、或更完整版本，应合并到已有 global note。
+- 必须提供 target_global_id
+- 必须提供 merged_text
+- 必须提供 merged_keywords
+- 必须提供 category
 
 3. discard
-表示这条 session note 不值得进入 global notes，例如：
+表示这条 session note 不值得进入 global notes。
+例如：
 - 只是提问本身
 - 没有长期价值
-- 明显重复
+- 明显重复但无需保留新版本
 - 噪音
 - 推断而非事实
+- 不得提供 target_global_id
+- 不得提供 merged_text
+
+你必须先判断 session note 与某条 global note 的关系类型，再决定 action。
+
+关系类型：
+- same_fact：同一事实的重复表达
+- richer_version：同一事实，但 session note 更完整
+- related_but_distinct：与某条 global note 相关，但描述的是另一条独立事实
+- no_value：不值得进入长期记忆
+
+动作映射：
+- same_fact -> merge
+- richer_version -> merge
+- related_but_distinct -> add
+- no_value -> discard
+
+
+判断原则：
+
+只有在以下情况才能 merge：
+- session note 与某条 global note 是同一事实的重复表达
+- session note 与某条 global note 含义等价，只是措辞不同
+- session note 是某条 global note 的更完整版本，但本质仍是同一事实
+
+以下情况应 add，不应 merge：
+- 两条 note 只是关于同一个对象、地点、设备或人
+- 两条 note 虽然主题相关，但描述的是不同事实
+- 新 note 为该对象补充了另一条独立长期事实
+
+判断时，“是否是同一事实”比“是否属于同一对象”更重要。
+
+输出质量约束：
+
+- 不要发明用户没有说过的事实
+- merged_text 应尽量保留原始事实表达，保持自然、完整、可直接保存
+- 不要把两个近义表达机械拼接成一个新表达
+- 如果两条 note 是同一事实，优先保留其中更自然、更完整的一条原始表述
+- merged_keywords 应使用自然短词
+- merged_keywords 应尽量精简，保留 2 到 3 个最有代表性的短词即可
+- 不要为了信息完整而枚举多个近义关键词
+- keywords 的目标是帮助检索，不是枚举所有近义表达
 
 强约束：
+
 - 你现在只处理一条 session note
 - 不要处理别的 session note
 - 不要遗漏当前这条 session note
-- 不要把多条 session note 合并成一条输出
 - 必须只输出一条 decision
-- 不要发明用户没有说过的事实
-- merged_text 应尽量保留原始事实表达，不要写成总结句
-- 不要使用奇怪的合并表达，例如“机器/机”这种写法
-
-动作要求：
-- action=merge 时，必须提供 target_global_id
-- action=add 或 action=merge 时，必须提供：
-  - merged_text
-  - merged_keywords
-  - category
-- action=discard 时，可以提供 reason
-
-判断原则：
-- 如果当前 session note 与某条 global note 是同一事实，优先 merge
-- 如果当前 session note 比已有 global note 更完整，merged_text 应保留更完整版本
-- 如果当前 session note 是新的长期事实，选择 add
-- 如果当前 session note 只是当前问句、一般知识问题、没有长期价值，选择 discard
+- 不要把多条 session note 合并成一条输出
 
 示例：
+
 当前 session note：
 房东自带的老扫地机不能拖地
 
@@ -57,4 +89,4 @@ global notes：
 - merged_text=房东自带的老扫地机不能拖地
 - category=device
 
-下面是 session notes 和 global notes：
+下面是 session note 和 global notes：

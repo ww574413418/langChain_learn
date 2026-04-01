@@ -13,6 +13,7 @@ from memory.profile_store import update_user_profile, get_user_profile
 from memory.memory_note_store import append_session_note,consolidate_session_notes
 from memory.memory_note_extractor import extract_candidate_notes
 from utils.logger_handler import logger as log
+from memory.memory_note_filter import filter_candidate_notes
 
 class ReactAgent:
 
@@ -54,12 +55,22 @@ class ReactAgent:
         if userProfile_patch:
             update_user_profile(user_id,userProfile_patch)
 
+        # 获取用户输入中需要长期记忆的内容
         note_result = extract_candidate_notes(query)
         if note_result.notes:
-            for note in note_result.notes:
-                if note.category == "other":
+            # 对note进行过滤
+            filtered_notes = filter_candidate_notes(
+                [note.model_dump() for note in note_result.notes]
+            )
+
+            for decision in filtered_notes:
+                if not decision.keep:
                     continue
-                append_session_note(user_id,thread_id,note.text,note.keywords,note.category)
+                append_session_note(user_id,
+                                    thread_id,
+                                    decision.normalized_text,
+                                    decision.normalized_keywords,
+                                    decision.category)
 
         # context={"report":False} 就是切换prompt的标志
         res = self.agent.stream(input_dic,stream_mode="values",context={"report":False,"user_id":user_id,"thread_id":thread_id},config=config)
@@ -82,17 +93,17 @@ class ReactAgent:
 agent = ReactAgent()
 
 if __name__ == '__main__':
-    # res = agent.execute_stream("扫地机器人和洗地机有什么区别","123123","0001")
-    # for chunk in res:
-    #     print(chunk,end="",flush=True)
+    res = agent.execute_stream("扫地机器人和洗地机有什么区别","123123","0001")
+    for chunk in res:
+        print(chunk,end="",flush=True)
 
-    # print("---"*20)
-    # res = agent.execute_stream("我家有猫，预算 2000，想买个安静点的", "123123", "0001")
-    # for chunk in res:
-    #     print(chunk, end="", flush=True)
+    print("---"*20)
+    res = agent.execute_stream("想买个安静点的扫地机", "123123", "0001")
+    for chunk in res:
+        print(chunk, end="", flush=True)
 
     print("---" * 20)
-    res = agent.execute_stream("房东自带的老扫地机不能拖地，这种情况我该换什么？", "123123", "0001")
+    res = agent.execute_stream("房东自带的老扫地机不能拖地", "123123", "0001")
     for chunk in res:
         print(chunk, end="", flush=True)
 
