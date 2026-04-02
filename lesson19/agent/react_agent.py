@@ -3,7 +3,7 @@ from utils.prompts_loader import load_system_prompt
 from agent.tools.agent_tools import (rag_summarize,get_weather,get_user_id,get_user_location,
                                      get_current_month,fetch_external_data,fill_context4report,
                                      rag_summarize_mixRecall,rag_summarize_rrf)
-from agent.tools.middleware import monitor_tool,log_before_model,report_prompt_switch,trim_history
+from agent.tools.middleware import monitor_tool,log_before_model,report_prompt_switch,persist_thread_summary
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain_core.messages import AIMessage,ToolMessage
@@ -15,6 +15,8 @@ from memory.memory_note_extractor import extract_candidate_notes
 from utils.logger_handler import logger as log
 from memory.memory_consolidator import consolidate_session_notes_with_plan
 from memory.memory_note_filter import filter_candidate_notes
+import uuid
+
 
 class ReactAgent:
 
@@ -32,7 +34,8 @@ class ReactAgent:
                               trigger=("tokens",1000), # 历史消息大约到 4000 tokens 时，开始总结。
                               keep=("messages",5) # 保留最近 20 条消息原文，较早部分压缩成 summary。
                           ),
-                          log_before_model],
+                          log_before_model,
+                          persist_thread_summary],
             checkpointer= InMemorySaver() # 引入临时会话保存点
         )
 
@@ -43,6 +46,14 @@ class ReactAgent:
         }
         # 用于保存历史信息
         config = {
+            "run_name":"lesson19_customer_agent",
+            "tags":["lesson19","agent","stream","customer-service"],
+            "metadata":{
+                "app":"lesson19",
+                "entrypoint":"streamlit",
+                "user_id":str(user_id),
+                "thread_id":str(thread_id)
+            },
             "configurable":{
                 "thread_id":thread_id
             }
@@ -97,16 +108,16 @@ class ReactAgent:
 agent = ReactAgent()
 
 if __name__ == '__main__':
-    # res = agent.execute_stream("扫地机器人和洗地机有什么区别","123123","0001")
-    # for chunk in res:
-    #     print(chunk,end="",flush=True)
-
-    print("---"*20)
-    res = agent.execute_stream("想买个安静点的扫地机", "123123", "0001")
-    for chunk in res:
-        print(chunk, end="", flush=True)
+    thread_id = f"sum_test_{uuid.uuid4().hex[:8]}"
+    print("thread_id:", thread_id)
 
     print("---" * 20)
-    res = agent.execute_stream("房东自带的老扫地机不能拖地", "123123", "0001")
+    res = agent.execute_stream("你还记得我前面说过我想买什么类型的扫地机吗？先帮我总结一下。", "sum_test_4264af7c", "0001")
     for chunk in res:
         print(chunk, end="", flush=True)
+
+    # print("---" * 20)
+    # res = agent.execute_stream("房东自带的老扫地机不能拖地", "sum_test_4264af7c", "0001")
+    # for chunk in res:
+    #     print(chunk, end="", flush=True)
+

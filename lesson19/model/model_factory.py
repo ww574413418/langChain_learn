@@ -8,13 +8,14 @@ from pydantic import BaseModel
 from langchain_openai import ChatOpenAI,OpenAIEmbeddings
 from langchain_ollama import OllamaEmbeddings
 import os
-from dotenv import load_dotenv
 from utils.config_handler import  rag_config
 from model.rerank_client import SiliconRerankModel
 from model.rerank_adapter import build_reranker_adapter
 from model.rerank_runnable import RerankerRunnable
+from utils.runtime_env import load_runtime_env, setup_langsmith_defaults
 
-load_dotenv("/Users/grubby/Library/Mobile Documents/com~apple~CloudDocs/PycharmProjects/langChain/langChain_learn/env")
+load_runtime_env()
+setup_langsmith_defaults()
 api_key = os.getenv("SILICON_FLOW")
 base_url = os.getenv("SILICON_URL")
 

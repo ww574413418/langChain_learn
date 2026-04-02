@@ -1,6 +1,6 @@
 from typing import Callable
 from langchain.agents import AgentState
-from langchain.agents.middleware import wrap_tool_call, before_model, dynamic_prompt, ModelRequest
+from langchain.agents.middleware import wrap_tool_call, before_model, dynamic_prompt, ModelRequest, after_agent
 from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.runtime import Runtime
@@ -12,6 +12,7 @@ from langgraph.graph.message import REMOVE_ALL_MESSAGES
 from memory.profile_store import get_user_profile
 from memory.memory_selector import select_memory_plan,pick_profile_fields,format_profile_subset
 from memory.memory_retriever import retrieve_relevant_notes,format_retrieved_notes
+from memory.thread_summary_store import save_thread_summary,load_thread_summary
 
 @wrap_tool_call
 def monitor_tool(
@@ -51,6 +52,20 @@ def log_before_model(
         )
     return None
 
+
+def has_summary_message(messages:list) -> bool:
+    if not messages:
+        return False
+    for message in messages:
+        if message.additional_kwargs.get("lc_source") == "summarization":
+            return True
+    return False
+
+def extract_summary_message(messages:list) -> str:
+    for message in reversed(messages):
+        if message.additional_kwargs.get("lc_source") == "summarization":
+            return message.content.strip()
+    return ""
 
 @dynamic_prompt # 每一次在生成提示词之前调用
 def report_prompt_switch(request:ModelRequest):
@@ -110,6 +125,13 @@ def report_prompt_switch(request:ModelRequest):
         if user_notes_text:
             memory_blocks.append(user_notes_text)
 
+    if thread_id and not has_summary_message(request.state["messages"]):
+        summary_payload = load_thread_summary(thread_id)
+        summary_text = summary_payload.get("summary", "").strip()
+
+        if summary_text:
+            memory_blocks.append(f"当前线程历史摘要：\n{summary_text}")
+
     if not memory_blocks:
         return base_prompt
 
@@ -145,3 +167,20 @@ def trim_history(state: AgentState,runtime: Runtime):
             *recent_message
         ]
     }
+
+@after_agent
+def persist_thread_summary(state: AgentState,runtime: Runtime):
+    '''
+    从当前线程中获取摘要
+    :param state:
+    :param runtime:
+    :return:
+    '''
+    thread_id = runtime.context.get("thread_id",None)
+    if not thread_id:
+        return None
+
+    summary = extract_summary_message(state["messages"])
+    if not summary:
+        return None
+    save_thread_summary(thread_id,summary)

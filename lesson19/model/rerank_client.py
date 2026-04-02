@@ -1,11 +1,11 @@
 
 import requests
 import os
-from dotenv import load_dotenv
 from langchain_core.documents import Document
 from utils.logger_handler import logger as log
+from utils.runtime_env import load_runtime_env
 
-load_dotenv("/Users/grubby/Library/Mobile Documents/com~apple~CloudDocs/PycharmProjects/langChain/langChain_learn/env")
+load_runtime_env()
 api = os.getenv("SILICON_FLOW")
 
 

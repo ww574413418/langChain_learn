@@ -272,6 +272,12 @@ def clear_session_notes(thread_id: str | int) -> None:
     save_notes(get_session_notes_path(thread_id), [])
 
 
+def delete_session_notes(thread_id: str | int) -> None:
+    path = get_session_notes_path(thread_id)
+    if os.path.exists(path):
+        os.remove(path)
+
+
 
 if __name__ == "__main__":
     print(append_session_note("0001", "123123","房东自带老扫地机器，不能拖地", ["扫地机", "不能拖地"], "device"))
