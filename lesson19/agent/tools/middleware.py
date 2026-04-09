@@ -13,6 +13,7 @@ from memory.profile_store import get_user_profile
 from memory.memory_selector import select_memory_plan,pick_profile_fields,format_profile_subset
 from memory.memory_retriever import retrieve_relevant_notes,format_retrieved_notes
 from memory.thread_summary_store import save_thread_summary,load_thread_summary
+from agent.route_policy import get_route_policy
 
 @wrap_tool_call
 def monitor_tool(
@@ -73,7 +74,11 @@ def report_prompt_switch(request:ModelRequest):
     动态提示词切换
     :return:
     '''
-    is_report= request.runtime.context.get("report",False)
+    route = request.runtime.context.get("route","qa")
+    log.info(f"[report_prompt_switch] route={route}")
+    route_policy = get_route_policy(route)
+    if route_policy.prompt_mode == "report":
+        return load_report_prompt()
 
     is_user_id = request.runtime.context.get("user_id",None)
 
@@ -81,9 +86,6 @@ def report_prompt_switch(request:ModelRequest):
 
     # 获取用户的query
     current_query = request.state["messages"][-1].content
-    # 需要report提示模板
-    if is_report:
-        return load_report_prompt()
 
     base_prompt = load_system_prompt()
 

@@ -175,5 +175,33 @@ def memory_note_filter_prompt() -> str:
         log.error(f"not found memory note filter prompt file: {memory_note_filter_prompt_path}")
         raise e
 
+def router_query_prompt() -> str:
+    try:
+        ROUTE_QUERY_PROMPT_PATH = get_abs_path(prompts_config["ROUTE_QUERY_PROMPT_PATH"])
+    except KeyError as e:
+        log.error(f"not found memory_note_filter_prompt_path in prompts config: {prompts_config}")
+        raise e
+
+    try:
+        with open(ROUTE_QUERY_PROMPT_PATH, "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError as e:
+        log.error(f"not found memory note filter prompt file: {ROUTE_QUERY_PROMPT_PATH}")
+        raise e
+
+def load_rag_answer_prompt() -> str:
+    try:
+        rag_answer_prompt_path = get_abs_path(prompts_config["rag_answer_prompt_path"])
+    except KeyError as e:
+        log.error(f"not found rag_answer_prompt_path in prompts config: {prompts_config}")
+        raise e
+
+    try:
+        with open(rag_answer_prompt_path, "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError as e:
+        log.error(f"not found rag answer prompt file: {rag_answer_prompt_path}")
+        raise e
+
 if __name__ == '__main__':
     print(load_system_prompt())
