@@ -272,6 +272,12 @@ def consolidate_with_plan(
 
 
 def consolidate_session_notes_with_plan(user_id: str | int, thread_id: str | int) -> list[dict]:
+    '''
+    整合每个session会话中的记忆
+    :param user_id:
+    :param thread_id:
+    :return:
+    '''
     session_notes = load_session_notes(thread_id)
     global_notes = load_global_notes(user_id)
 

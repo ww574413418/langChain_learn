@@ -203,5 +203,20 @@ def load_rag_answer_prompt() -> str:
         log.error(f"not found rag answer prompt file: {rag_answer_prompt_path}")
         raise e
 
+def load_report_writer_prompt() -> str:
+    try:
+        report_writer_prompt_path = get_abs_path(prompts_config["report_writer_prompt_path"])
+    except KeyError as e:
+        log.error(f"not found report_writer_prompt_path in prompts config: {prompts_config}")
+        raise e
+
+    try:
+        with open(report_writer_prompt_path, "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError as e:
+        log.error(f"not found report writer prompt file: {report_writer_prompt_path}")
+        raise e
+
+
 if __name__ == '__main__':
     print(load_system_prompt())
