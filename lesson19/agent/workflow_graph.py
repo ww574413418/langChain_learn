@@ -10,17 +10,10 @@ from agent.workflow_nodes import (
     report_writer_node,
     tool_request_parse_node,
     tool_execute_node,
+    memory_read_node,
+    qa_node,
     consolidate_node
 )
-
-'''
-qa_node 
-占位置,只是为了先把 graph 编译、跑通。
-'''
-def qa_node(state: WorkflowState) -> dict:
-    return {
-        "final_answer": "qa_node not implemented yet"
-    }
 
 
 def build_workflow():
@@ -30,6 +23,7 @@ def build_workflow():
     graph.add_node("memory_write_node", memory_write_node)
     graph.add_node("rag_retrieve_node",rag_retrieve_node)
     graph.add_node("rag_answer_node",rag_answer_node)
+    graph.add_node("memory_read_node", memory_read_node)
     graph.add_node("qa_node",qa_node)
     graph.add_node("tool_request_parse_node", tool_request_parse_node)
     graph.add_node("tool_execute_node", tool_execute_node)
@@ -44,7 +38,7 @@ def build_workflow():
         "memory_write_node",
         route_condition,
         {
-            "qa": "qa_node",
+            "qa": "memory_read_node",
             "rag_qa": "rag_retrieve_node",
             "tool_qa": "tool_request_parse_node",
             "report": "report_fetch_node",
@@ -58,6 +52,8 @@ def build_workflow():
     graph.add_edge("report_writer_node", "consolidate_node")
     graph.add_edge("tool_request_parse_node", "tool_execute_node")
     graph.add_edge("tool_execute_node", "consolidate_node")
+    graph.add_edge("memory_read_node", "qa_node")
+    graph.add_edge("qa_node", "consolidate_node")
     graph.add_edge("consolidate_node", END)
 
     return graph.compile()
@@ -66,9 +62,9 @@ workflow = build_workflow()
 
 if __name__ == "__main__":
     state = {
-        "query": "今天天气怎么样？",
+        "query": "结合我之前说过的需求，再给我推荐一下",
         "user_id": "0001",
-        "thread_id": "workflow_tool_test_001",
+        "thread_id": "workflow_qa_test_002",
     }
 
     result = workflow.invoke(state)

@@ -16,6 +16,9 @@ class WorkflowState(TypedDict,total=False):
     policy_output_mode:str
 
     memory_write_done:bool
+    profile_context:str
+    notes_context:str
+    summary_context:str
     memory_context:str
 
     rag_context:str

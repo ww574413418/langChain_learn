@@ -11,4 +11,6 @@ memory_note_filter_prompt_path: "prompts/MEMORY_NOTE_FILTER_PROMPT.txt"
 ROUTE_QUERY_PROMPT_PATH: "prompts/ROUTE_QUERY_PROMPT.txt"
 rag_answer_prompt_path: "prompts/rag_answer_prompt.txt"
 report_writer_prompt_path: "prompts/report_writer_prompt.txt"
+qa_answer_prompt_path: "prompts/qa_answer_prompt.txt"
+
 

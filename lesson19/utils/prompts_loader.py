@@ -217,6 +217,19 @@ def load_report_writer_prompt() -> str:
         log.error(f"not found report writer prompt file: {report_writer_prompt_path}")
         raise e
 
+def load_qa_answer_prompt() -> str:
+    try:
+        qa_answer_prompt_path = get_abs_path(prompts_config["qa_answer_prompt_path"])
+    except KeyError as e:
+        log.error(f"not found qa_answer_prompt_path in prompts config: {prompts_config}")
+        raise e
+
+    try:
+        with open(qa_answer_prompt_path, "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError as e:
+        log.error(f"not found qa answer prompt file: {qa_answer_prompt_path}")
+        raise e
 
 if __name__ == '__main__':
     print(load_system_prompt())

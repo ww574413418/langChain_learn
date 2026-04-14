@@ -24,8 +24,9 @@ from memory.memory_note_filter import filter_candidate_notes
 from rag.mixedRecall.rag_service import rag_summary_service
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from utils.prompts_loader import load_rag_answer_prompt,load_report_writer_prompt
+from utils.prompts_loader import load_rag_answer_prompt,load_report_writer_prompt,load_qa_answer_prompt
 from memory.memory_consolidator import consolidate_session_notes_with_plan
+from agent.service.qa_context_service import build_memory_read_artifacts
 
 
 rag_answer_chain = (PromptTemplate.from_template(load_rag_answer_prompt())
@@ -38,6 +39,13 @@ report_writer_chain = (
     | chat_model
     | StrOutputParser()
 )
+
+qa_answer_chain = (
+    PromptTemplate.from_template(load_qa_answer_prompt())
+    | chat_model
+    | StrOutputParser()
+)
+
 
 '''
 router_node 不负责执行 workflow。
@@ -217,7 +225,7 @@ def report_fetch_node(state:WorkflowState) -> dict:
     }
 
 
-def report_writer_node(state:WorkflowState):
+def report_writer_node(state:WorkflowState) ->dict:
     '''
     职责只做“根据已准备好的材料写报告”。
     '''
@@ -299,6 +307,40 @@ def tool_execute_node(state: WorkflowState) -> dict:
         "tool_resolution": plan.resolution,
         "tool_result": tool_result,
         "final_answer": final_answer,
+    }
+
+def memory_read_node(state:WorkflowState) ->dict:
+    query = state["query"]
+    user_id = state["user_id"]
+    thread_id = state["thread_id"]
+
+    artifacts = build_memory_read_artifacts(query, user_id, thread_id)
+
+    log.info(
+        f"[memory_read_node] "
+        f"profile_len={len(artifacts['profile_context'])}, "
+        f"notes_len={len(artifacts['notes_context'])}, "
+        f"summary_len={len(artifacts['summary_context'])}, "
+        f"memory_len={len(artifacts['memory_context'])}"
+    )
+
+    return artifacts
+
+def qa_node(state: WorkflowState) -> dict:
+    query = state["query"]
+    memory_context = state.get("memory_context", "")
+
+    final_answer = qa_answer_chain.invoke(
+        {
+            "query": query,
+            "memory_context": memory_context or "无额外上下文",
+        }
+    )
+
+    log.info("[qa_node] completed")
+
+    return {
+        "final_answer": final_answer.strip() if final_answer else "",
     }
 
 if __name__ == "__main__":
