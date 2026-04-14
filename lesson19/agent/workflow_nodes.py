@@ -1,8 +1,15 @@
-from agent.report_request_parser import extract_report_request_params
-from agent.report_service import (
+from agent.request_parse.report_request_parser import extract_report_request_params
+from agent.request_parse.tool_request_parser import ToolRequestParams, extract_tool_request_params
+from agent.service.report_service import (
     fetch_external_report_data,
     format_report_data,
     resolve_report_month_for_user,
+)
+from agent.service.tool_service import (
+    build_tool_execution_plan,
+    fetch_weather_data,
+    format_weather_result,
+    render_weather_answer,
 )
 from agent.workflow_state import WorkflowState
 from agent.route_policy import get_route_policy
@@ -238,6 +245,61 @@ def report_writer_node(state:WorkflowState):
         "final_answer": final_answer.strip() if final_answer else "",
     }
 
+
+def tool_request_parse_node(state: WorkflowState) -> dict:
+    query = state["query"]
+    request = extract_tool_request_params(query)
+
+    log.info(
+        f"[tool_request_parse_node] tool_name={request.tool_name}, "
+        f"provided_args={request.provided_args}, "
+        f"missing_required_args={request.missing_required_args}"
+    )
+
+    return {
+        "tool_name": request.tool_name,
+        "tool_provided_args": request.provided_args,
+        "tool_missing_required_args": request.missing_required_args,
+    }
+
+
+def tool_execute_node(state: WorkflowState) -> dict:
+    user_id = state["user_id"]
+
+    request = ToolRequestParams(
+        tool_name=state["tool_name"],
+        provided_args=state.get("tool_provided_args", {}),
+        missing_required_args=state.get("tool_missing_required_args", []),
+    )
+
+    plan = build_tool_execution_plan(user_id=user_id, request=request)
+
+    if plan.missing_required_args:
+        return {
+            "tool_resolved_args": plan.resolved_args,
+            "tool_resolution": plan.resolution,
+            "final_answer": "请告诉我你想查询哪个城市的天气。",
+        }
+
+    city = plan.resolved_args["city"]
+    weather_data = fetch_weather_data(city)
+    city_resolution = plan.resolution["city"]
+
+    tool_result = format_weather_result(weather_data)
+    final_answer = render_weather_answer(weather_data, city_resolution)
+
+    log.info(
+        f"[tool_execute_node] tool_name={plan.tool_name}, "
+        f"resolved_args={plan.resolved_args}, "
+        f"resolution={plan.resolution}"
+    )
+
+    return {
+        "tool_resolved_args": plan.resolved_args,
+        "tool_resolution": plan.resolution,
+        "tool_result": tool_result,
+        "final_answer": final_answer,
+    }
 
 if __name__ == "__main__":
     state = {

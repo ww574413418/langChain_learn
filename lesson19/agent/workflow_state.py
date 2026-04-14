@@ -19,7 +19,6 @@ class WorkflowState(TypedDict,total=False):
     memory_context:str
 
     rag_context:str
-    report_date:str
     report_month: str
     resolved_report_month: str
     report_month_resolution: str
@@ -27,6 +26,11 @@ class WorkflowState(TypedDict,total=False):
     report_data: str
     report_context: str
 
+    tool_name: str
+    tool_provided_args: dict
+    tool_missing_required_args: list[str]
+    tool_resolved_args: dict
+    tool_resolution: dict
     tool_result: str
 
     final_answer:str
