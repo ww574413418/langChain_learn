@@ -46,7 +46,6 @@ def build_workflow():
     )
 
     graph.add_edge("rag_retrieve_node", "rag_answer_node")
-    graph.add_edge("qa_node","consolidate_node")
     graph.add_edge("rag_answer_node","consolidate_node")
     graph.add_edge("report_fetch_node", "report_writer_node")
     graph.add_edge("report_writer_node", "consolidate_node")

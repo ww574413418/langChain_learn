@@ -2,7 +2,7 @@ import time
 
 import streamlit as st
 
-from agent.react_agent import agent
+from agent.workflow_runner import runner
 from memory.chat_session_store import (
     DEFAULT_SESSION_TITLE,
     cleanup_inactive_empty_sessions,
@@ -128,10 +128,10 @@ st.markdown(
 )
 
 if "user_id" not in st.session_state:
-    st.session_state["user_id"] = "0001"
+    st.session_state["user_id"] = "1007"
 
 if "agent" not in st.session_state:
-    st.session_state["agent"] = agent
+    st.session_state["agent"] = runner
 
 if "chat_sessions" not in st.session_state:
     st.session_state["chat_sessions"] = []

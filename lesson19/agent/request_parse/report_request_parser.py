@@ -21,22 +21,15 @@ class ReportRquestParam(BaseModel):
 def normalize_year_month(year:int,month:int) ->str:
     return f"{year}-{month:02d}"
 
-def parse_explicit_month(query:str) ->str:
-    """
-    支持：
-    - 2025-12
-    - 2025年12月
-    - 12月（默认当前年）
-    """
+def parse_explicit_month(query: str) -> str | None:
     query = query.strip()
 
     match = re.search(r"(20\d{2})[-年](\d{1,2})月?", query)
-
     if match:
+        year = int(match.group(1))
         month = int(match.group(2))
         if 1 <= month <= 12:
-            year = datetime.now().year
-            return normalize_year_month(year,month)
+            return normalize_year_month(year, month)
 
     match = re.search(r"(?<!\d)(\d{1,2})月", query)
     if match:
